@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Dashboard — BarberSaaS</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Fonte Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Configuração de cores do Tailwind -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#d4af37',
+            'gold-dark': '#b8962e',
+            'dark-bg': '#0a0a0a',
+          },
+          fontFamily: { inter: ['Inter', 'sans-serif'] },
+        },
+      },
+    }
+  </script>
+
+  <!-- CSS consolidado em assets/css/style.css -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <style type="text/disabled">
+    /* ══════════════════════════════════════════════════
+       DESIGN TOKENS
+    ══════════════════════════════════════════════════ */
+    :root {
+      --gold:          #d4af37;
+      --gold-dark:     #b8962e;
+      --gold-glow:     rgba(212,175,55,0.20);
+      --gold-subtle:   rgba(212,175,55,0.08);
+      --bg:            #0a0a0a;
+      --surface:       #111111;
+      --card:          #181818;
+      --border:        rgba(255,255,255,0.07);
+      --border-gold:   rgba(212,175,55,0.3);
+      --glass-bg:      rgba(255,255,255,0.04);
+      --glass-border:  rgba(255,255,255,0.09);
+      --text:          #ffffff;
+      --muted:         #888888;
+      --dim:           #444444;
+      --green:         #22c55e;
+      --red:           #ef4444;
+      --radius-sm:     8px;
+      --radius-md:     12px;
+      --radius-lg:     16px;
+      --radius-xl:     20px;
+      --radius-full:   9999px;
+      --transition:    all 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+    html { -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      /* Padding inferior para a barra de ação fixa */
+      padding-bottom: 88px;
+    }
+
+    ::-webkit-scrollbar      { width: 3px; }
+    ::-webkit-scrollbar-track{ background: var(--bg); }
+    ::-webkit-scrollbar-thumb{ background: var(--gold-dark); border-radius: var(--radius-full); }
+
+    /* ══════════════════════════════════════════════════
+       TOPBAR DO DASHBOARD
+    ══════════════════════════════════════════════════ */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 16px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      /* Sticky para ficar visível ao rolar */
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+
+    #topbar-title {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+    }
+
+    #topbar-badge {
+      font-size: 9px;
+      font-weight: 800;
+      color: #000;
+      background: var(--gold);
+      border-radius: var(--radius-full);
+      padding: 2px 9px;
+      letter-spacing: 1.5px;
+    }
+
+    /* Botão de sair */
+    #logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: var(--radius-full);
+      padding: 7px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ef4444;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    #logout-btn:hover {
+      background: rgba(239,68,68,0.18);
+    }
+
+    /* ══════════════════════════════════════════════════
+       CARDS DE RESUMO (KPI chips)
+    ══════════════════════════════════════════════════ */
+    #kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 16px 16px 0;
+    }
+
+    .kpi-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--gold);
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+
+    .kpi-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    /* ══════════════════════════════════════════════════
+       SEÇÃO DE CONTEÚDO GENÉRICA
+    ══════════════════════════════════════════════════ */
+    .content-block { padding: 20px 16px 4px; }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 14px;
+      background: var(--gold);
+      border-radius: var(--radius-full);
+      flex-shrink: 0;
+    }
+
+    /* Sublabel ao lado do título */
+    .section-title span {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    /* ══════════════════════════════════════════════════
+       BLOQUEIO DE HORÁRIO MANUAL
+       Seletor de hora para o barbeiro bloquear slots
+    ══════════════════════════════════════════════════ */
+    #block-form {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    #block-date, #block-time {
+      flex: 1;
+      background: #1c1c1c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-md);
+      padding: 11px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #block-date:focus, #block-time:focus {
+      border-color: var(--gold);
+    }
+
+    /* Remove o calendário padrão do input date em webkit */
+    #block-date::-webkit-calendar-picker-indicator,
+    #block-time::-webkit-calendar-picker-indicator {
+      filter: invert(1) opacity(0.4);
+    }
+
+    #block-btn {
+      padding: 11px 16px;
+      background: var(--gold-subtle);
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-md);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+
+    #block-btn:hover:not(:disabled) {
+      background: var(--gold);
+      color: #000;
+    }
+
+    #block-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ══════════════════════════════════════════════════
+       GRADE DE AGENDA (lista vertical de horários)
+    ══════════════════════════════════════════════════ */
+    #agenda-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Card base de agendamento */
+    .appt-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Borda lateral colorida por status */
+    .appt-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+    }
+
+    /* Confirmado: borda dourada */
+    .appt-card.confirmado {
+      border-color: var(--border-gold);
+      background: rgba(212,175,55,0.04);
+    }
+    .appt-card.confirmado::before { background: var(--gold); }
+
+    /* Cancelado: opaco */
+    .appt-card.cancelado {
+      opacity: 0.38;
+    }
+    .appt-card.cancelado::before { background: var(--red); }
+
+    /* Pendente */
+    .appt-card.pendente::before { background: #f59e0b; }
+
+    /* Bloqueado (slot manual) */
+    .appt-card.bloqueado {
+      background: rgba(239,68,68,0.04);
+      border-color: rgba(239,68,68,0.2);
+    }
+    .appt-card.bloqueado::before { background: var(--red); }
+
+    /* Horário: destaque dourado grande */
+    .appt-time {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--gold);
+      line-height: 1;
+      min-width: 48px;
+      padding-top: 2px;
+    }
+
+    .appt-body { flex: 1; min-width: 0; }
+
+    .appt-name {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .appt-service {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+
+    /* Chips de status e ações */
+    .appt-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .status-chip {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .status-chip.confirmado { background: rgba(212,175,55,0.15); color: var(--gold); }
+    .status-chip.cancelado  { background: rgba(239,68,68,0.12);  color: #ef4444; }
+    .status-chip.pendente   { background: rgba(245,158,11,0.12); color: #f59e0b; }
+    .status-chip.bloqueado  { background: rgba(239,68,68,0.12);  color: #ef4444; }
+
+    /* Botão de ação rápida dentro do card */
+    .appt-action-btn {
+      padding: 3px 10px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .appt-action-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .appt-action-btn.danger:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* ══════════════════════════════════════════════════
+       NAVEGAÇÃO POR ABAS DO DASHBOARD
+    ══════════════════════════════════════════════════ */
+    #dash-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 57px; /* altura do topbar */
+      z-index: 39;
+    }
+
+    .dash-tab-btn {
+      padding: 12px 6px;
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      position: relative;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+
+    .dash-tab-btn.active { color: var(--gold); }
+    .dash-tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 20%;
+      right: 20%;
+      height: 2px;
+      background: var(--gold);
+      border-radius: var(--radius-full);
+    }
+
+    .dash-section { display: none; }
+    .dash-section.active { display: block; }
+
+    /* ══════════════════════════════════════════════════
+       SELETOR DE DATA DO DASHBOARD
+    ══════════════════════════════════════════════════ */
+    #date-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 16px 0;
+    }
+
+    #dash-date-input {
+      flex: 1;
+      background: #1c1c1c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #dash-date-input:focus { border-color: var(--gold); }
+    #dash-date-input::-webkit-calendar-picker-indicator {
+      filter: invert(1) opacity(0.5);
+    }
+
+    #reload-btn {
+      padding: 10px 14px;
+      background: var(--gold-subtle);
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-md);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    #reload-btn:hover { background: var(--gold); color: #000; }
+
+    /* ══════════════════════════════════════════════════
+       EMPTY STATE
+    ══════════════════════════════════════════════════ */
+    .empty-state {
+      text-align: center;
+      color: var(--dim);
+      font-size: 13px;
+      padding: 48px 0;
+      font-style: italic;
+    }
+
+    /* ══════════════════════════════════════════════════
+       SKELETON LOADER
+    ══════════════════════════════════════════════════ */
+    .skeleton {
+      height: 72px;
+      background: linear-gradient(
+        90deg,
+        var(--card) 25%,
+        #222 50%,
+        var(--card) 75%
+      );
+      background-size: 400% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: var(--radius-lg);
+    }
+
+    @keyframes shimmer {
+      0%   { background-position:  200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ══════════════════════════════════════════════════
+       GRADE DE SERVIÇOS (aba Serviços)
+    ══════════════════════════════════════════════════ */
+    #services-admin-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .service-admin-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sac-name {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .sac-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sac-duration { font-size: 11px; color: var(--muted); }
+    .sac-price    { font-size: 14px; font-weight: 800; color: var(--gold); }
+
+    /* Toggle ativo/inativo */
+    .toggle-btn {
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: var(--transition);
+    }
+
+    .toggle-btn.ativo   { background: rgba(34,197,94,0.15);  color: #22c55e; }
+    .toggle-btn.inativo { background: rgba(239,68,68,0.12);  color: #ef4444; }
+
+    /* ══════════════════════════════════════════════════
+       BOTÃO DE AÇÃO FIXO NO RODAPÉ
+    ══════════════════════════════════════════════════ */
+    #dash-action-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, var(--bg) 60%, transparent);
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 50;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 15px 20px;
+      background: var(--gold);
+      color: #000;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      border: none;
+      border-radius: var(--radius-xl);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      background: var(--gold-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px var(--gold-glow);
+    }
+
+    .action-btn:disabled {
+      background: #252525;
+      color: var(--dim);
+      cursor: not-allowed;
+    }
+
+    /* ══════════════════════════════════════════════════
+       TOAST
+    ══════════════════════════════════════════════════ */
+    #toast {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-80px);
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      padding: 10px 24px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 100;
+      transition: transform 0.3s cubic-bezier(0.34,1.45,0.64,1);
+      white-space: nowrap;
+      max-width: calc(100vw - 32px);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    #toast.show      { transform: translateX(-50%) translateY(0); }
+    #toast.success   { border-color: #22c55e; color: #22c55e; }
+    #toast.error     { border-color: #ef4444; color: #ef4444; }
+    #toast.info      { border-color: var(--gold); color: var(--gold); }
+
+    /* ══════════════════════════════════════════════════
+       MODAL DE CONFLITO
+    ══════════════════════════════════════════════════ */
+    #conflict-modal {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: flex-end; justify-content: center;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    #conflict-modal.show { opacity: 1; pointer-events: auto; }
+    #conflict-modal-card {
+      background: #161616;
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px 20px 0 0;
+      padding: 28px 20px 40px;
+      width: 100%; max-width: 480px;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
+    }
+    #conflict-modal.show #conflict-modal-card { transform: translateY(0); }
+    #conflict-title {
+      font-size: 1.15rem; font-weight: 700;
+      color: #f59e0b; margin-bottom: 12px;
+    }
+    #conflict-info {
+      font-size: 0.92rem; color: rgba(255,255,255,0.75);
+      line-height: 1.55; margin-bottom: 20px;
+    }
+    #conflict-whatsapp-btn {
+      display: none;
+      width: 100%; padding: 12px;
+      background: #25d366; border: none; border-radius: 12px;
+      color: #000; font-weight: 700; font-size: 0.95rem;
+      cursor: pointer; margin-bottom: 12px;
+      transition: opacity 0.2s;
+    }
+    #conflict-whatsapp-btn:hover { opacity: 0.85; }
+    .conflict-actions {
+      display: flex; gap: 10px; margin-top: 4px;
+    }
+    .conflict-actions button {
+      flex: 1; padding: 12px; border-radius: 12px;
+      font-weight: 600; font-size: 0.9rem; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .conflict-actions button:hover { opacity: 0.8; }
+    #conflict-cancel-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.75);
+    }
+    #conflict-confirm-btn {
+      background: #ef4444; border: 1px solid #ef4444;
+      color: #fff;
+    }
+    #conflict-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ══════════════════════════════════════════════════
+       RESPONSIVO DESKTOP
+    ══════════════════════════════════════════════════ */
+    @media (min-width: 768px) {
+      body { max-width: 480px; margin: 0 auto; box-shadow: 0 0 80px rgba(0,0,0,0.9); }
+      #dash-action-bar { max-width: 480px; left: 50%; transform: translateX(-50%); }
+    }
+  </style>
+</head>
+
+<body class="page-dashboard">
+
+  <!-- ════════════════════════════════════════════════
+       TOPBAR
+  ════════════════════════════════════════════════ -->
+  <div id="topbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div id="topbar-title">Dashboard</div>
+      <div id="topbar-badge">BARBEIRO</div>
+    </div>
+    <button id="logout-btn">
+      <span>⏻</span> Sair
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       KPI — RESUMO DO DIA (populado via JS)
+  ════════════════════════════════════════════════ -->
+  <div id="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-total">—</div>
+      <div class="kpi-label">Hoje</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-confirmed" style="color:#22c55e">—</div>
+      <div class="kpi-label">Confirmados</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value" id="kpi-pending" style="color:#f59e0b">—</div>
+      <div class="kpi-label">Pendentes</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       NAVEGAÇÃO POR ABAS DO DASHBOARD
+  ════════════════════════════════════════════════ -->
+  <nav id="dash-tabs">
+    <button class="dash-tab-btn active" data-tab="agenda">AGENDA</button>
+    <button class="dash-tab-btn"        data-tab="bloqueio">BLOQUEIOS</button>
+    <button class="dash-tab-btn"        data-tab="servicos">SERVIÇOS</button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════
+       ABA: AGENDA DO DIA
+  ════════════════════════════════════════════════ -->
+  <section id="dash-agenda" class="dash-section active">
+
+    <!-- Seletor de data -->
+    <div id="date-picker-row">
+      <input type="date" id="dash-date-input" aria-label="Selecionar data" />
+      <button id="reload-btn" aria-label="Recarregar agenda">↻ Ver</button>
+    </div>
+
+    <!-- Lista de agendamentos -->
+    <div class="content-block">
+      <h2 class="section-title">
+        Agendamentos
+        <span id="agenda-date-subtitle"></span>
+      </h2>
+      <div id="agenda-list">
+        <!-- Skeletons de carregamento -->
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       ABA: BLOQUEIO MANUAL DE HORÁRIO
+  ════════════════════════════════════════════════ -->
+  <section id="dash-bloqueio" class="dash-section">
+    <div class="content-block">
+      <h2 class="section-title">Bloquear Horário Manualmente</h2>
+      <p style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.6;">
+        Use este recurso para marcar um horário como <strong style="color:#ef4444">ocupado</strong>
+        preventivamente — por exemplo, para uma pausa ou compromisso pessoal.
+      </p>
+
+      <!-- Formulário de bloqueio -->
+      <div id="block-form">
+        <input
+          type="date"
+          id="block-date"
+          aria-label="Data do bloqueio"
+        />
+        <input
+          type="time"
+          id="block-time"
+          aria-label="Horário do bloqueio"
+          step="3600"
+          min="09:00"
+          max="19:00"
+        />
+        <button id="block-btn">Bloquear</button>
+      </div>
+
+      <!-- Lista de bloqueios ativos -->
+      <h2 class="section-title" style="margin-top:24px">Bloqueios Ativos</h2>
+      <div id="bloqueios-list">
+        <p class="empty-state">Nenhum bloqueio ativo.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       ABA: GESTÃO DE SERVIÇOS
+  ════════════════════════════════════════════════ -->
+  <section id="dash-servicos" class="dash-section">
+    <div class="content-block">
+      <h2 class="section-title">Serviços Cadastrados</h2>
+      <div id="services-admin-grid">
+        <div class="skeleton" style="height:80px"></div>
+        <div class="skeleton" style="height:80px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       BARRA DE AÇÃO FIXA
+       Botão de "Ver Página do Cliente" para o barbeiro
+       testar o agendamento público
+  ════════════════════════════════════════════════ -->
+  <div id="dash-action-bar">
+    <button class="action-btn" id="view-public-btn">
+      Ver Página Pública de Agendamento →
+    </button>
+  </div>
+
+  <!-- Toast de feedback -->
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ════════════════════════════════════════════════
+       SCRIPTS
+  ════════════════════════════════════════════════ -->
+  <!-- Scripts: api.js → auth.js → app.js -->
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/app.js"></script>
+
+  <script type="text/disabled-javascript">
+    'use strict';
+
+    /* ────────────────────────────────────────────────
+       ESTADO DO DASHBOARD
+    ──────────────────────────────────────────────── */
+    const DashState = {
+      barbearia: null,  // objeto com id, slug, nome etc.
+      user:      null,  // objeto User do Supabase Auth
+      date:      '',    // data selecionada no formato YYYY-MM-DD
+      role:      null,  // 'dono' | 'barbeiro'
+      barbeiro:  null,  // objeto barbeiro individual (role === 'barbeiro')
+      filterBarbeiroId: null, // filtro ativo de barbeiro (dono pode alternar)
+    };
+
+    /* ────────────────────────────────────────────────
+       UTILITÁRIOS
+    ──────────────────────────────────────────────── */
+    function todayISO() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    function formatDateBR(iso) {
+      // 'YYYY-MM-DD' → 'DD/MM/YYYY'
+      if (!iso) return '';
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    let _toastTimer;
+    function showToast(msg, type = 'info', ms = 3000) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `show ${type}`;
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => { el.className = ''; }, ms);
+    }
+
+    // Sanitiza strings para uso em innerHTML (previne XSS)
+    function sanitize(str) {
+      const t = document.createElement('span');
+      t.textContent = String(str ?? '');
+      return t.innerHTML;
+    }
+
+    /* ────────────────────────────────────────────────
+       GUARD DE ACESSO — verifica Auth antes de tudo
+    ──────────────────────────────────────────────── */
+    async function initDashboard() {
+      const ctx = await AuthService.requireBarbeiro();
+      if (!ctx) return;
+
+      DashState.user      = ctx.user;
+      DashState.barbearia = ctx.barbearia;
+      DashState.role      = ctx.role;      // 'dono' | 'barbeiro'
+      DashState.barbeiro  = ctx.barbeiro;  // null quando dono
+      DashState.date      = todayISO();
+
+      // Se for barbeiro individual, filtra por seu próprio ID por padrão
+      if (ctx.role === 'barbeiro' && ctx.barbeiro) {
+        DashState.filterBarbeiroId = ctx.barbeiro.id;
+      }
+
+      // Atualiza título e badge de papel
+      const title = ctx.barbearia ? ctx.barbearia.nome : 'Dashboard';
+      document.getElementById('topbar-title').textContent = title;
+      const badge = document.getElementById('topbar-badge');
+      badge.textContent = ctx.role === 'dono' ? 'DONO' : 'BARBEIRO';
+
+      // Se for dono, exibe o seletor de barbeiro na agenda
+      if (ctx.role === 'dono') {
+        await injectBarberFilter();
+      }
+
+      const dateInput = document.getElementById('dash-date-input');
+      dateInput.value = DashState.date;
+
+      setupEventListeners();
+      loadAgenda(DashState.date);
+      loadServicos();
+      loadBloqueios();
+    }
+
+    /* ── Filtro de barbeiro (só para o dono) ──────────────── */
+    async function injectBarberFilter() {
+      const row = document.getElementById('date-picker-row');
+
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'width:100%;padding:0 16px;margin-top:12px;';
+
+      const sel = document.createElement('select');
+      sel.id = 'filter-barber-select';
+      sel.style.cssText = [
+        'width:100%', 'background:#1c1c1c',
+        'border:1px solid rgba(255,255,255,0.08)',
+        'border-radius:12px', 'padding:10px 14px',
+        'font-family:Inter,sans-serif', 'font-size:13px',
+        'color:#fff', 'outline:none', '-webkit-appearance:none',
+        'appearance:none', 'cursor:pointer',
+      ].join(';');
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = 'Todos os profissionais';
+      sel.appendChild(defaultOpt);
+
+      try {
+        const { data } = await supabaseClient
+          .from('barbeiros')
+          .select('id, nome')
+          .eq('barbearia_slug', DashState.barbearia.slug)
+          .eq('ativo', true)
+          .order('nome', { ascending: true });
+
+        (data || []).forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = b.nome;
+          sel.appendChild(opt);
+        });
+      } catch { /* silencioso */ }
+
+      sel.addEventListener('change', () => {
+        DashState.filterBarbeiroId = sel.value || null;
+        loadAgenda(DashState.date);
+      });
+
+      wrapper.appendChild(sel);
+      row.parentNode.insertBefore(wrapper, row.nextSibling);
+    }
+
+    /* ════════════════════════════════════════════════
+       DATA SERVICE — Supabase
+    ════════════════════════════════════════════════ */
+    const DashData = {
+
+      /**
+       * Busca agendamentos de um dia filtrando pela barbearia do usuário.
+       * RLS garante que só retorna registros com barbearia_slug da barbearia
+       * que pertence ao user_id autenticado.
+       */
+      async fetchAgendamentos(dateStr) {
+        let query = supabaseClient
+          .from('agendamentos')
+          .select('id, horario, cliente_nome, servico_nome, status, cliente_telefone, barbeiro_id, barbeiros(nome)')
+          .eq('barbearia_slug', DashState.barbearia.slug)
+          .eq('data', dateStr)
+          .order('horario', { ascending: true });
+
+        // Se há filtro de barbeiro ativo (dono filtrando ou barbeiro individual)
+        if (DashState.filterBarbeiroId) {
+          query = query.eq('barbeiro_id', DashState.filterBarbeiroId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      },
+
+      /** Busca todos os bloqueios manuais (status = 'bloqueado') futuros. */
+      async fetchBloqueios() {
+        const hoje = todayISO();
+        let query = supabaseClient
+          .from('agendamentos')
+          .select('id, data, horario, barbeiro_id, barbeiros(nome)')
+          .eq('barbearia_slug', DashState.barbearia.slug)
+          .eq('status', 'bloqueado')
+          .gte('data', hoje)
+          .order('data', { ascending: true })
+          .order('horario', { ascending: true });
+
+        if (DashState.filterBarbeiroId) {
+          query = query.eq('barbeiro_id', DashState.filterBarbeiroId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      },
+
+      /** Busca serviços ativos da barbearia. */
+      async fetchServicos() {
+        const { data, error } = await supabaseClient
+          .from('servicos')
+          .select('id, nome, duracao, preco, ativo')
+          .eq('barbearia_slug', DashState.barbearia.slug)
+          .order('preco', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
+      },
+
+      /**
+       * Insere um bloqueio manual na tabela agendamentos
+       * com status = 'bloqueado', sem cliente, sem serviço.
+       */
+      async insertBloqueio(dateStr, timeStr) {
+        const payload = {
+          barbearia_slug:   DashState.barbearia.slug,
+          cliente_nome:     '— Bloqueado —',
+          cliente_telefone: '0',
+          data:             dateStr,
+          horario:          timeStr,
+          status:           'bloqueado',
+        };
+
+        // Se for barbeiro individual, vincula o bloqueio ao seu ID
+        if (DashState.filterBarbeiroId) {
+          payload.barbeiro_id = DashState.filterBarbeiroId;
+        }
+
+        const { data, error } = await supabaseClient
+          .from('agendamentos')
+          .insert([payload])
+          .select();
+
+        if (error) throw error;
+        return data;
+      },
+
+      /**
+       * Remove um bloqueio ou agendamento pelo id.
+       * RLS garante que só o barbeiro dono pode deletar.
+       */
+      async deleteAgendamento(id) {
+        const { error } = await supabaseClient
+          .from('agendamentos')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+      },
+
+      /**
+       * Atualiza o status de um agendamento.
+       * @param {string} id - UUID do agendamento
+       * @param {string} status - 'confirmado' | 'cancelado' | 'pendente'
+       */
+      async updateStatus(id, status) {
+        const { error } = await supabaseClient
+          .from('agendamentos')
+          .update({ status })
+          .eq('id', id);
+
+        if (error) throw error;
+      },
+
+      /** Alterna o campo `ativo` de um serviço. */
+      async toggleServico(id, ativo) {
+        const { error } = await supabaseClient
+          .from('servicos')
+          .update({ ativo })
+          .eq('id', id);
+
+        if (error) throw error;
+      },
+    };
+
+    /* ════════════════════════════════════════════════
+       RENDER — Agenda do dia
+    ════════════════════════════════════════════════ */
+    async function loadAgenda(dateStr) {
+      const list = document.getElementById('agenda-list');
+      list.innerHTML = `
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      `;
+
+      document.getElementById('agenda-date-subtitle').textContent =
+        `— ${formatDateBR(dateStr)}`;
+
+      try {
+        const agendamentos = await DashData.fetchAgendamentos(dateStr);
+        renderAgenda(agendamentos);
+        updateKPIs(agendamentos);
+      } catch (err) {
+        list.innerHTML = `<p class="empty-state">Erro ao carregar agenda: ${sanitize(err.message)}</p>`;
+        console.error('[Dashboard] loadAgenda:', err);
+      }
+    }
+
+    function renderAgenda(agendamentos) {
+      const list = document.getElementById('agenda-list');
+
+      if (!agendamentos.length) {
+        list.innerHTML = '<p class="empty-state">Nenhum agendamento para este dia.</p>';
+        return;
+      }
+
+      list.innerHTML = '';
+      agendamentos.forEach(a => {
+        // Normaliza horário: 'HH:MM:SS' → 'HH:MM'
+        const timeDisplay = String(a.horario).slice(0, 5);
+        const statusClass = a.status || 'pendente';
+
+        const card = document.createElement('div');
+        card.className = `appt-card ${statusClass}`;
+        card.dataset.id = a.id;
+
+        // Nome do barbeiro responsável pelo agendamento
+        const barberName = a.barbeiros?.nome || null;
+
+        card.innerHTML = `
+          <div class="appt-time">${sanitize(timeDisplay)}</div>
+          <div class="appt-body">
+            <div class="appt-name">${sanitize(a.cliente_nome)}</div>
+            <div class="appt-service">
+              ${sanitize(a.servico_nome || '—')}
+              ${barberName ? `<span style="color:#666;margin-left:6px;">· ${sanitize(barberName)}</span>` : ''}
+            </div>
+            <div class="appt-actions">
+              <span class="status-chip ${statusClass}">${sanitize(statusClass)}</span>
+              ${a.status !== 'confirmado' && a.status !== 'bloqueado'
+                ? `<button class="appt-action-btn"       data-action="confirmar" data-id="${sanitize(a.id)}">✓ Confirmar</button>`
+                : ''}
+              ${a.status !== 'cancelado' && a.status !== 'bloqueado'
+                ? `<button class="appt-action-btn danger" data-action="cancelar"  data-id="${sanitize(a.id)}">✕ Cancelar</button>`
+                : ''}
+              ${a.status === 'bloqueado' || a.status === 'cancelado'
+                ? `<button class="appt-action-btn danger" data-action="deletar"   data-id="${sanitize(a.id)}">🗑 Remover</button>`
+                : ''}
+            </div>
+          </div>
+          ${a.cliente_telefone && a.cliente_telefone !== '0'
+            ? `<a href="https://wa.me/${sanitize(a.cliente_telefone.replace(/\D/g,''))}"
+                 target="_blank" rel="noopener noreferrer"
+                 style="font-size:18px;align-self:center;flex-shrink:0;"
+                 title="Abrir WhatsApp">💬</a>`
+            : ''}
+        `;
+
+        list.appendChild(card);
+      });
+
+      // Delegation de eventos nos botões de ação
+      list.addEventListener('click', handleAgendaAction);
+    }
+
+    async function handleAgendaAction(e) {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+
+      const { action, id } = btn.dataset;
+      btn.disabled = true;
+
+      try {
+        if (action === 'confirmar') {
+          await DashData.updateStatus(id, 'confirmado');
+          showToast('Agendamento confirmado!', 'success');
+        } else if (action === 'cancelar') {
+          await DashData.updateStatus(id, 'cancelado');
+          showToast('Agendamento cancelado.', 'info');
+        } else if (action === 'deletar') {
+          await DashData.deleteAgendamento(id);
+          showToast('Registro removido.', 'info');
+        }
+        // Re-renderiza a lista após a ação
+        loadAgenda(DashState.date);
+      } catch (err) {
+        showToast(`Erro: ${err.message}`, 'error', 5000);
+        btn.disabled = false;
+      }
+    }
+
+    /* ════════════════════════════════════════════════
+       RENDER — KPIs do dia
+    ════════════════════════════════════════════════ */
+    function updateKPIs(agendamentos) {
+      document.getElementById('kpi-total').textContent     = agendamentos.length;
+      document.getElementById('kpi-confirmed').textContent = agendamentos.filter(a => a.status === 'confirmado').length;
+      document.getElementById('kpi-pending').textContent   = agendamentos.filter(a => a.status === 'pendente').length;
+    }
+
+    /* ════════════════════════════════════════════════
+       RENDER — Bloqueios manuais
+    ════════════════════════════════════════════════ */
+    async function loadBloqueios() {
+      const list = document.getElementById('bloqueios-list');
+      try {
+        const bloqueios = await DashData.fetchBloqueios();
+        if (!bloqueios.length) {
+          list.innerHTML = '<p class="empty-state">Nenhum bloqueio ativo.</p>';
+          return;
+        }
+        list.innerHTML = '';
+        bloqueios.forEach(b => {
+          const item = document.createElement('div');
+          item.className = 'appt-card bloqueado';
+          item.innerHTML = `
+            <div class="appt-time">${sanitize(String(b.horario).slice(0,5))}</div>
+            <div class="appt-body">
+              <div class="appt-name" style="color:#ef4444">Bloqueado</div>
+              <div class="appt-service">${sanitize(formatDateBR(b.data))}</div>
+              <div class="appt-actions">
+                <span class="status-chip bloqueado">bloqueado</span>
+                <button class="appt-action-btn danger" data-action="deletar" data-id="${sanitize(b.id)}">
+                  🗑 Remover
+                </button>
+              </div>
+            </div>
+          `;
+          list.appendChild(item);
+        });
+
+        // Delegation para remover bloqueios
+        list.addEventListener('click', async (e) => {
+          const btn = e.target.closest('[data-action="deletar"]');
+          if (!btn) return;
+          btn.disabled = true;
+          try {
+            await DashData.deleteAgendamento(btn.dataset.id);
+            showToast('Bloqueio removido.', 'success');
+            loadBloqueios();
+          } catch (err) {
+            showToast(`Erro: ${err.message}`, 'error');
+            btn.disabled = false;
+          }
+        });
+
+      } catch (err) {
+        list.innerHTML = `<p class="empty-state">Erro: ${sanitize(err.message)}</p>`;
+      }
+    }
+
+    /* ════════════════════════════════════════════════
+       RENDER — Serviços
+    ════════════════════════════════════════════════ */
+    async function loadServicos() {
+      const grid = document.getElementById('services-admin-grid');
+      try {
+        const servicos = await DashData.fetchServicos();
+        if (!servicos.length) {
+          grid.innerHTML = '<p class="empty-state">Nenhum serviço cadastrado.</p>';
+          return;
+        }
+        grid.innerHTML = '';
+        servicos.forEach(s => {
+          const card = document.createElement('div');
+          card.className = 'service-admin-card';
+          const preco = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(s.preco);
+          card.innerHTML = `
+            <div class="sac-name">${sanitize(s.nome)}</div>
+            <div class="sac-footer">
+              <span class="sac-duration">⏱ ${sanitize(s.duracao)}min</span>
+              <span class="sac-price">${sanitize(preco)}</span>
+            </div>
+            <button
+              class="toggle-btn ${s.ativo ? 'ativo' : 'inativo'}"
+              data-id="${sanitize(s.id)}"
+              data-ativo="${s.ativo}"
+            >
+              ${s.ativo ? '● Ativo' : '○ Inativo'}
+            </button>
+          `;
+          grid.appendChild(card);
+        });
+
+        // Toggle ativo/inativo
+        grid.addEventListener('click', async (e) => {
+          const btn = e.target.closest('.toggle-btn');
+          if (!btn) return;
+          const novoAtivo = btn.dataset.ativo !== 'true';
+          btn.disabled = true;
+          try {
+            await DashData.toggleServico(btn.dataset.id, novoAtivo);
+            showToast(novoAtivo ? 'Serviço ativado.' : 'Serviço desativado.', 'info');
+            loadServicos();
+          } catch (err) {
+            showToast(`Erro: ${err.message}`, 'error');
+            btn.disabled = false;
+          }
+        });
+
+      } catch (err) {
+        grid.innerHTML = `<p class="empty-state">Erro: ${sanitize(err.message)}</p>`;
+      }
+    }
+
+    /* ════════════════════════════════════════════════
+       BLOQUEIO INTELIGENTE
+    ════════════════════════════════════════════════ */
+    let _conflictTarget = null;
+
+    async function verificarEBloquear(data, hora) {
+      const barbeiroId = DashState.filterBarbeiroId || null;
+
+      let query = supabaseClient
+        .from('agendamentos')
+        .select('id, cliente_nome, cliente_telefone, status')
+        .eq('barbearia_slug', DashState.barbearia.slug)
+        .eq('data', data)
+        .eq('horario', hora)
+        .neq('status', 'cancelado')
+        .neq('status', 'bloqueado');
+
+      if (barbeiroId) query = query.eq('barbeiro_id', barbeiroId);
+
+      const { data: encontrados, error } = await query;
+      if (error) throw error;
+
+      if (!encontrados || encontrados.length === 0) {
+        // Horário livre — bloquear diretamente
+        await DashData.insertBloqueio(data, hora);
+        showToast(`${hora} em ${formatDateBR(data)} bloqueado!`, 'success');
+        document.getElementById('block-date').value = '';
+        document.getElementById('block-time').value = '';
+        loadBloqueios();
+        if (DashState.date === data) loadAgenda(data);
+      } else {
+        // Horário ocupado — exibir modal de conflito
+        showConflictModal(encontrados[0], data, hora);
+      }
+    }
+
+    function showConflictModal(agendamento, data, hora) {
+      _conflictTarget = { agendamento, data, hora };
+      const info = document.getElementById('conflict-info');
+      info.textContent =
+        `Cliente: ${agendamento.cliente_nome} — ${hora} em ${formatDateBR(data)}. ` +
+        `Deseja cancelar o agendamento e entrar em contato para remarcar?`;
+      // Esconde o botão de WhatsApp até que a ação seja confirmada
+      document.getElementById('conflict-whatsapp-btn').style.display = 'none';
+      document.getElementById('conflict-confirm-btn').disabled = false;
+      document.getElementById('conflict-confirm-btn').textContent = 'Sim, cancelar agendamento';
+      document.getElementById('conflict-modal').classList.add('show');
+    }
+
+    function closeConflictModal() {
+      document.getElementById('conflict-modal').classList.remove('show');
+      _conflictTarget = null;
+    }
+
+    async function confirmConflictBlock() {
+      if (!_conflictTarget) return;
+      const { agendamento, data, hora } = _conflictTarget;
+      const confirmBtn = document.getElementById('conflict-confirm-btn');
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Processando…';
+
+      try {
+        // 1. Cancelar o agendamento do cliente
+        await DashData.updateStatus(agendamento.id, 'cancelado');
+        // 2. Inserir o bloqueio
+        await DashData.insertBloqueio(data, hora);
+
+        // 3. Montar link do WhatsApp com mensagem pré-preenchida
+        const barbeariaNome = DashState.barbearia.nome || 'Barbearia';
+        const msg = `Olá ${agendamento.cliente_nome}, aqui é do ${barbeariaNome}. ` +
+          `Tivemos um imprevisto e não poderemos atender no dia ${formatDateBR(data)} às ${hora}. ` +
+          `Podemos remarcar para outro horário?`;
+        const tel = (agendamento.cliente_telefone || '').replace(/\D/g, '');
+        const waUrl = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+
+        // 4. Exibir botão do WhatsApp
+        const waBtn = document.getElementById('conflict-whatsapp-btn');
+        waBtn.style.display = 'block';
+        waBtn.onclick = () => window.open(waUrl, '_blank', 'noopener');
+
+        confirmBtn.textContent = 'Bloqueio feito ✓';
+        showToast(`${hora} em ${formatDateBR(data)} bloqueado!`, 'success');
+        document.getElementById('block-date').value = '';
+        document.getElementById('block-time').value = '';
+        loadBloqueios();
+        if (DashState.date === data) loadAgenda(data);
+      } catch (err) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Sim, cancelar agendamento';
+        showToast(`Erro: ${err.message}`, 'error', 5000);
+      }
+    }
+
+    /* ════════════════════════════════════════════════
+       EVENT LISTENERS
+    ════════════════════════════════════════════════ */
+    function setupEventListeners() {
+      // ── Logout ──────────────────────────────────────
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        AuthService.signOut();
+      });
+
+      // ── Ver página pública ───────────────────────────
+      document.getElementById('view-public-btn').addEventListener('click', () => {
+        const url = `index.html?b=${encodeURIComponent(DashState.barbearia.slug)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
+
+      // ── Navegação de abas do dashboard ──────────────
+      document.querySelectorAll('.dash-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.dash-section').forEach(s => s.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(`dash-${btn.dataset.tab}`).classList.add('active');
+        });
+      });
+
+      // ── Seletor de data da agenda ────────────────────
+      document.getElementById('reload-btn').addEventListener('click', () => {
+        const v = document.getElementById('dash-date-input').value;
+        if (!v) { showToast('Selecione uma data.', 'error'); return; }
+        DashState.date = v;
+        loadAgenda(v);
+      });
+
+      // Recarrega ao pressionar Enter no input de data
+      document.getElementById('dash-date-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('reload-btn').click();
+      });
+
+      // ── Formulário de bloqueio manual (Bloqueio Inteligente) ──
+      document.getElementById('block-btn').addEventListener('click', async () => {
+        const date = document.getElementById('block-date').value;
+        const time = document.getElementById('block-time').value;
+
+        if (!date || !time) {
+          showToast('Preencha a data e o horário antes de bloquear.', 'error');
+          return;
+        }
+
+        const btn = document.getElementById('block-btn');
+        btn.disabled = true;
+        btn.textContent = 'Verificando…';
+
+        try {
+          await verificarEBloquear(date, time);
+        } catch (err) {
+          showToast(`Erro: ${err.message}`, 'error', 5000);
+        } finally {
+          btn.disabled    = false;
+          btn.textContent = 'Bloquear';
+        }
+      });
+
+      // ── Modal de conflito ──────────────────────────
+      document.getElementById('conflict-cancel-btn').addEventListener('click', closeConflictModal);
+      document.getElementById('conflict-confirm-btn').addEventListener('click', confirmConflictBlock);
+      // Fechar ao clicar no overlay
+      document.getElementById('conflict-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('conflict-modal')) closeConflictModal();
+      });
+    }
+
+    /* ════════════════════════════════════════════════
+       INIT
+    ════════════════════════════════════════════════ */
+    document.addEventListener('DOMContentLoaded', initDashboard);
+  </script>
+
+  <!-- ════════════════════════════════════════════════
+       MODAL DE CONFLITO DE HORÁRIO
+  ════════════════════════════════════════════════ -->
+  <div id="conflict-modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+    <div id="conflict-modal-card">
+      <div id="conflict-title">⚠️ Horário Ocupado</div>
+      <p id="conflict-info">Este horário já possui um cliente agendado. Deseja cancelar o agendamento e entrar em contato para remarcar?</p>
+      <button id="conflict-whatsapp-btn">💬 Contatar pelo WhatsApp</button>
+      <div class="conflict-actions">
+        <button id="conflict-cancel-btn">Não, voltar</button>
+        <button id="conflict-confirm-btn">Sim, cancelar agendamento</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

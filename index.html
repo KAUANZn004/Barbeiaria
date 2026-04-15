@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Agende seu horário com facilidade. Plataforma premium de agendamento para barbearias." />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>BarberSaaS — Agendamento Online</title>
+
+  <!-- ================================================
+       TAILWIND CSS via Play CDN
+       REGRA: NÃO usar diretiva @apply — somente classes
+       utilitárias inline ou CSS padrão no style.css
+  ================================================ -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ================================================
+       FONTE: Inter (Google Fonts)
+  ================================================ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- ================================================
+       SUPABASE JS SDK via CDN (UMD build)
+       Expõe o objeto global `supabase` com createClient
+  ================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- ================================================
+       CSS CUSTOMIZADO: glassmorphism, calendário,
+       animações e componentes que o Tailwind puro
+       não cobre elegantemente
+  ================================================ -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <!-- ================================================
+       CONFIGURAÇÃO DO TAILWIND: paleta de cores custom
+       Deve vir DEPOIS do CDN do Tailwind
+  ================================================ -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold:          '#d4af37',
+            'gold-dark':   '#b8962e',
+            'dark-bg':     '#0a0a0a',
+            'dark-surface':'#111111',
+            'dark-card':   '#1a1a1a',
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+</head>
+
+<body>
+
+  <!-- ================================================
+       HERO HEADER
+       Imagem de fundo da barbearia + gradiente
+       escuro no rodapé para legibilidade do texto.
+       Os dados (nome, endereço, foto) são injetados
+       dinamicamente via JavaScript.
+  ================================================ -->
+  <header id="hero-header">
+    <!-- Camada 1: Imagem de fundo (atualizada via JS) -->
+    <div id="hero-bg"></div>
+    <!-- Camada 2: Gradiente transparente → preto (rodapé) -->
+    <div id="hero-gradient"></div>
+    <!-- Camada 3: Conteúdo textual sobreposto -->
+    <div id="hero-content">
+      <span id="hero-badge">PREMIUM</span>
+      <h1 id="shop-name">Carregando…</h1>
+      <p id="shop-address">Buscando informações…</p>
+      <div id="hero-rating">
+        <span id="hero-stars">★★★★★</span>
+        <span id="hero-reviews-count">…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================
+       NAVEGAÇÃO POR ABAS
+       Sticky: gruda no topo quando o header sai da tela.
+       A aba ativa recebe a classe .active (indicador dourado).
+  ================================================ -->
+  <nav id="tab-nav">
+    <!-- data-tab precisa corresponder ao id="tab-{value}" das seções -->
+    <button class="tab-btn active" data-tab="agenda">AGENDA</button>
+    <button class="tab-btn"        data-tab="portfolio">PORTFÓLIO</button>
+    <button class="tab-btn"        data-tab="reviews">REVIEWS</button>
+  </nav>
+
+  <!-- ================================================
+       CONTEÚDO PRINCIPAL
+       Cada <section> representa uma aba.
+       Apenas a ativa tem a classe .active (display: block).
+  ================================================ -->
+  <main id="main-content">
+
+    <!-- ─── ABA: AGENDA ─────────────────────────────── -->
+    <section id="tab-agenda" class="tab-section active">
+
+      <!-- Bloco: Seleção de Serviço -->
+      <div class="content-block" id="services-section">
+        <h2 class="section-title">Selecione o Serviço</h2>
+        <!-- Grid de cards gerados pelo JS (skeleton enquanto carrega) -->
+        <div id="services-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </div>
+
+      <!-- Bloco: Calendário dinâmico -->
+      <div class="content-block" id="calendar-section">
+        <!-- Header do calendário: navegação de mês -->
+        <div id="calendar-header">
+          <button id="prev-month" class="month-nav-btn" aria-label="Mês anterior">&#8249;</button>
+          <h2 id="calendar-month-title">Carregando…</h2>
+          <button id="next-month" class="month-nav-btn" aria-label="Próximo mês">&#8250;</button>
+        </div>
+        <!-- Linha dos nomes dos dias da semana (7 colunas) -->
+        <div id="calendar-weekdays">
+          <span>DOM</span><span>SEG</span><span>TER</span>
+          <span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span>
+        </div>
+        <!-- Grade de dias — populada pelo módulo Calendar no JS -->
+        <div id="calendar-days"></div>
+      </div>
+
+      <!-- Bloco: Grade de horários disponíveis -->
+      <div class="content-block" id="timeslots-section">
+        <h2 class="section-title">
+          Horários disponíveis
+          <span id="selected-date-label"></span>
+        </h2>
+        <!-- Grid 4 colunas — populado ao selecionar um dia -->
+        <div id="slots-grade">
+          <p class="empty-state">Selecione uma data acima para ver os horários.</p>
+        </div>
+      </div>
+
+    </section>
+    <!-- ─── FIM ABA: AGENDA ──────────────────────────── -->
+
+    <!-- ─── ABA: PORTFÓLIO ──────────────────────────── -->
+    <section id="tab-portfolio" class="tab-section">
+      <div class="content-block">
+        <h2 class="section-title">Portfólio</h2>
+        <!-- Grid 3 colunas — populado via JS -->
+        <div id="portfolio-grid">
+          <p class="empty-state">Nenhum trabalho publicado ainda.</p>
+        </div>
+      </div>
+    </section>
+    <!-- ─── FIM ABA: PORTFÓLIO ───────────────────────── -->
+
+    <!-- ─── ABA: REVIEWS ────────────────────────────── -->
+    <section id="tab-reviews" class="tab-section">
+      <div class="content-block">
+        <!-- Card de resumo de avaliação -->
+        <div id="rating-summary" class="glass-card">
+          <div id="rating-big">—</div>
+          <div id="rating-stars-big">☆☆☆☆☆</div>
+          <div id="rating-total">0 avaliações</div>
+        </div>
+        <h2 class="section-title" style="margin-top:24px">Opiniões dos Clientes</h2>
+        <!-- Lista de cards de review — populada via JS -->
+        <div id="reviews-list">
+          <p class="empty-state">Nenhuma avaliação ainda.</p>
+        </div>
+      </div>
+    </section>
+    <!-- ─── FIM ABA: REVIEWS ─────────────────────────── -->
+
+  </main>
+
+  <!-- ================================================
+       MODAL: Confirmação do agendamento
+       Aparece como bottom-sheet ao clicar em "Reservar".
+       O formulário captura nome e telefone do cliente.
+  ================================================ -->
+  <div id="booking-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <!-- Fundo escurecido — clique nele fecha o modal -->
+    <div id="modal-backdrop"></div>
+    <!-- Conteúdo do painel (bottom-sheet com glassmorphism) -->
+    <div id="modal-content">
+      <!-- Botão de fechar (canto superior direito) -->
+      <button id="close-modal" aria-label="Fechar modal">&#x2715;</button>
+
+      <h2 id="modal-title">Confirmar Agendamento</h2>
+
+      <!-- Resumo da seleção: injetado dinamicamente pelo JS -->
+      <div id="booking-summary"></div>
+
+      <!-- Formulário do cliente -->
+      <form id="booking-form" novalidate autocomplete="on">
+        <div class="form-group">
+          <label for="client-name">Seu Nome Completo</label>
+          <input
+            type="text"
+            id="client-name"
+            name="name"
+            placeholder="Ex: João Silva"
+            autocomplete="name"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="client-phone">Seu WhatsApp</label>
+          <input
+            type="tel"
+            id="client-phone"
+            name="tel"
+            placeholder="(11) 99999-9999"
+            autocomplete="tel"
+            maxlength="15"
+            required
+          />
+        </div>
+        <!-- Botão de envio do formulário -->
+        <button type="submit" id="confirm-btn" class="action-btn">
+          <span id="confirm-btn-text">Confirmar e Agendar</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================================================
+       BARRA DE AÇÃO FIXA NO RODAPÉ
+       Sempre visível; botão habilitado apenas quando
+       serviço + data + horário estão selecionados.
+  ================================================ -->
+  <div id="action-bar">
+    <button id="book-btn" class="action-btn" disabled>
+      Selecione um serviço e horário
+    </button>
+  </div>
+
+  <!-- ================================================
+       TOAST: Notificações de feedback ao usuário
+       Exibido com JS via UI.showToast()
+  ================================================ -->
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ================================================
+       SCRIPTS (ordem é obrigatória)
+       1. api.js  → Supabase config + todas as funções de banco
+       2. ui.js   → manipulação de DOM, calendário, slots, modais
+       3. main.js → orquestração, AppState, Handlers e bootstrap
+  ================================================ -->
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/main.js"></script>
+
+</body>
+</html>

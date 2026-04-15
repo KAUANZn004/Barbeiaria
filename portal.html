@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BarberSaaS | Acesso</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style type="text/disabled">
+        .glass {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .input-dark {
+            display: block; width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 13px 16px;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-dark:focus  { border-color: #d4af37; }
+        .input-dark::placeholder { color: #555; }
+        .btn-gold {
+            display: block; width: 100%;
+            padding: 14px;
+            background: #d4af37;
+            color: #000; font-weight: 800; font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            border: none; border-radius: 14px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .btn-gold:hover   { background: #b8962e; }
+        .btn-gold:active  { transform: scale(0.98); }
+        .btn-gold:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .animate-fade-in  { animation: fadeIn  0.4s ease forwards; }
+        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) forwards; }
+        @keyframes fadeIn  { from { opacity: 0 }                         to { opacity: 1 } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: translateY(0) } }
+    </style>
+</head>
+<body class="bg-[#050505] text-white font-['Inter'] min-h-screen flex items-center justify-center p-6">
+
+    <!-- Tela: Seleção de perfil -->
+    <div id="selecao-perfil" class="w-full max-w-md space-y-8 text-center animate-fade-in">
+        <header class="mb-12">
+            <h1 class="text-4xl font-black uppercase tracking-tighter italic">
+                Barber<span class="text-[#d4af37]">SaaS</span>
+            </h1>
+            <p class="text-gray-500 text-xs font-bold tracking-[0.3em] mt-2 uppercase">Escolha seu perfil</p>
+        </header>
+
+        <div class="grid grid-cols-1 gap-4">
+            <!-- Botão: Sou Barbeiro -->
+            <button onclick="mostrarLoginBarbeiro()"
+                    class="glass p-8 rounded-[2rem] border border-white/5 hover:border-[#d4af37]/50 transition-all group">
+                <div class="bg-[#d4af37]/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-8 h-8 text-[#d4af37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold uppercase italic">Sou Barbeiro</h2>
+                <p class="text-gray-500 text-sm mt-2">Gerenciar minha agenda e clientes</p>
+            </button>
+
+            <!-- Botão: Quero Agendar -->
+            <button onclick="irParaAgendamento()"
+                    class="glass p-8 rounded-[2rem] border border-white/5 hover:border-cyan-500/50 transition-all group">
+                <div class="bg-cyan-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold uppercase italic">Quero Agendar</h2>
+                <p class="text-gray-500 text-sm mt-2">Escolher profissional e horário</p>
+            </button>
+        </div>
+    </div>
+
+    <!-- Tela: Login do Barbeiro -->
+    <div id="login-barbeiro" class="hidden w-full max-w-md space-y-6 animate-slide-up">
+        <button onclick="voltarSelecao()"
+                class="text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white">
+            &larr; Voltar
+        </button>
+        <div class="glass p-8 rounded-[2.5rem] border border-white/5">
+            <h2 class="text-2xl font-black uppercase mb-6 italic">Acesso Restrito</h2>
+            <div id="login-error" class="hidden mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm"></div>
+            <div class="space-y-4">
+                <input type="email"    id="email"    placeholder="E-mail"  class="input-dark">
+                <input type="password" id="password" placeholder="Senha"   class="input-dark">
+                <button onclick="realizarLogin()" id="btn-login" class="btn-gold mt-4">
+                    ENTRAR NO PAINEL
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/api.js"></script>
+
+    <script>
+        function mostrarLoginBarbeiro() {
+            document.getElementById('selecao-perfil').classList.add('hidden');
+            document.getElementById('login-barbeiro').classList.remove('hidden');
+        }
+
+        function voltarSelecao() {
+            document.getElementById('login-barbeiro').classList.add('hidden');
+            document.getElementById('selecao-perfil').classList.remove('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+        }
+
+        function mostrarErro(msg) {
+            const el = document.getElementById('login-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        async function realizarLogin() {
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn      = document.getElementById('btn-login');
+
+            document.getElementById('login-error').classList.add('hidden');
+
+            if (!email || !password) {
+                mostrarErro('Preencha e-mail e senha.');
+                return;
+            }
+
+            btn.textContent = 'AUTENTICANDO...';
+            btn.disabled    = true;
+
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                mostrarErro('E-mail ou senha incorretos.');
+                btn.textContent = 'ENTRAR NO PAINEL';
+                btn.disabled    = false;
+                return;
+            }
+
+            // Verifica se é dono de uma barbearia
+            const { data: barbearia } = await supabaseClient
+                .from('barbearias')
+                .select('slug')
+                .eq('user_id', data.user.id)
+                .maybeSingle();
+
+            if (barbearia) {
+                window.location.href = 'dashboard.html?b=' + barbearia.slug;
+                return;
+            }
+
+            // Verifica se é barbeiro individual
+            const { data: barbeiro } = await supabaseClient
+                .from('barbeiros')
+                .select('barbearia_slug')
+                .eq('user_id', data.user.id)
+                .maybeSingle();
+
+            if (barbeiro) {
+                window.location.href = 'dashboard.html?b=' + barbeiro.barbearia_slug;
+                return;
+            }
+
+            mostrarErro('Acesso negado: conta não vinculada a nenhuma barbearia.');
+            await supabaseClient.auth.signOut();
+            btn.textContent = 'ENTRAR NO PAINEL';
+            btn.disabled    = false;
+        }
+
+        function irParaAgendamento() {
+            window.location.href = 'index.html?b=vzp';
+        }
+
+        // Enter no campo de senha dispara o login
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('password').addEventListener('keydown', e => {
+                if (e.key === 'Enter') realizarLogin();
+            });
+        });
+    </script>
+</body>
+</html>
