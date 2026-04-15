@@ -1,0 +1,96 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BarberSaaS | Dashboard Dono</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="bg-[var(--bg)] text-white">
+  <main class="mx-auto min-h-screen w-full max-w-7xl px-4 pb-14 pt-6 md:px-8 role-owner" data-page="dono-dashboard">
+    <header class="glass-panel mb-6 rounded-[1.75rem] border border-white/10 p-5 md:p-7">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="premium-chip role-chip owner-chip">PAINEL DONO</p>
+          <h1 id="owner-title" class="mt-2 text-3xl font-extrabold md:text-5xl">Carregando gestão...</h1>
+          <p id="owner-subtitle" class="mt-2 text-sm text-zinc-300">Visualização operacional com controle de permissões da equipe.</p>
+        </div>
+        <a href="portal.html" class="btn-outline inline-flex items-center justify-center">Voltar ao portal</a>
+      </div>
+    </header>
+
+    <section class="mb-6 grid gap-4 md:grid-cols-3">
+      <article class="metric-card">
+        <p class="metric-label">Equipe Ativa</p>
+        <p id="owner-metric-active" class="metric-value">0</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-label">Contas Inativas</p>
+        <p id="owner-metric-inactive" class="metric-value">0</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-label">Agenda no Dia</p>
+        <p id="owner-metric-appointments" class="metric-value">0</p>
+      </article>
+    </section>
+
+    <section class="glass-panel mb-6 rounded-[1.4rem] border border-white/10 p-5">
+      <h2 class="section-label">Cadastrar Colaborador</h2>
+      <form id="owner-team-form" class="mt-3 grid gap-3 md:grid-cols-2">
+        <input id="owner-team-name" class="input-premium" type="text" placeholder="Nome do colaborador" required>
+        <input id="owner-team-username" class="input-premium" type="text" placeholder="Nome de usuario (ex: joao.barber)" required>
+        <input id="owner-team-password" class="input-premium" type="password" placeholder="Senha inicial (min. 8)" minlength="8" required>
+        <button id="owner-team-save" class="btn-gold md:col-span-2" type="submit">Criar colaborador</button>
+      </form>
+      <p class="mt-3 text-xs text-zinc-400">Cadastro manual da equipe: sem e-mail, com validacao por usuario e senha na tabela barbeiros.</p>
+    </section>
+
+    <section class="glass-panel mb-6 rounded-[1.4rem] border border-white/10 p-5">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="section-label">Equipe e Permissões</h2>
+        <button id="owner-refresh-team" type="button" class="btn-outline">Atualizar</button>
+      </div>
+      <div id="owner-team-list" class="team-grid mt-4"></div>
+    </section>
+
+    <section class="glass-panel rounded-[1.4rem] border border-white/10 p-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h2 class="section-label">Agenda da Equipe (Somente Leitura)</h2>
+        <div class="grid gap-2 md:grid-cols-3">
+          <select id="owner-agenda-barber" class="input-premium">
+            <option value="">Todos os colaboradores</option>
+          </select>
+          <input id="owner-agenda-date" class="input-premium" type="date">
+          <button id="owner-agenda-load" type="button" class="btn-outline">Ver agenda</button>
+        </div>
+      </div>
+      <ul id="owner-agenda-list" class="mt-4 space-y-2"></ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="owner-delete-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+    <div class="modal-box owner-delete-modal-box">
+      <button id="owner-delete-close" class="modal-close" type="button" aria-label="Fechar">&times;</button>
+      <p class="premium-chip mb-4 owner-danger-chip">EXCLUSAO</p>
+      <h2 class="text-2xl font-extrabold">Confirmar remoção</h2>
+      <p id="owner-delete-message" class="mt-3 text-sm text-zinc-300">
+        Deseja realmente remover este colaborador da equipe? Esta ação não pode ser desfeita.
+      </p>
+      <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <button id="owner-delete-cancel" class="btn-outline" type="button">CANCELAR</button>
+        <button id="owner-delete-confirm" class="btn-danger" type="button">SIM, EXCLUIR</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/equipe.js"></script>
+</body>
+</html>

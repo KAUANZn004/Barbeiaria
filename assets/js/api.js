@@ -1,352 +1,667 @@
-/* ====================================================
-   API.JS — BarberSaaS
-   Arquivo: assets/js/api.js
+﻿/* =========================================================
+   api.js
+   Responsabilidade: centralizar integração Supabase e CRUD.
 
-   RESPONSABILIDADE:
-     Única camada de comunicação com o banco de dados
-     (Supabase). Nenhuma outra função neste arquivo
-     manipula o DOM ou contém lógica de UI.
-
-   DEPENDÊNCIAS:
-     Deve ser carregado APÓS o SDK do Supabase no HTML.
-     Expõe os objetos globais: `SupabaseConfig` e `Api`.
-
-   TABELAS ACESSADAS:
-     ✦ barbearias  → dados do salão (nome, endereço, foto)
-     ✦ servicos    → serviços ativos com preço e duração
-     ✦ agendamentos → reservas dos clientes (SELECT e INSERT)
-     ✦ portfolio   → imagens de trabalhos do barbeiro
-     ✦ reviews     → avaliações dos clientes
-
-   ESTRATÉGIA DE FALLBACK (modo demo):
-     Quando o Supabase não está configurado (credenciais
-     padrão) ou offline, cada função retorna dados fictícios
-     do objeto `DemoData`. Isso permite demonstrar o sistema
-     sem banco de dados real.
-   ==================================================== */
+  PROCESSO DE DADOS:
+  1) Inicializa cliente Supabase uma unica vez.
+  2) Busca barbearia por slug para contexto multi-tenant.
+  3) Lista servicos ativos para o cliente.
+  4) Consulta agendamentos para detectar ocupacao/bloqueio.
+  5) Persiste novos agendamentos e bloqueios do dashboard.
+  6) Gerencia portfólio (fotos de cortes) e logo da barbearia.
+========================================================= */
 
 'use strict';
 
-
-/* ──────────────────────────────────────────────────────
-   CREDENCIAIS DO SUPABASE
-   ► Como configurar:
-     1. Acesse https://supabase.com → seu projeto
-     2. Vá em Settings → API
-     3. Copie "Project URL" e "anon / public" Key
-     4. Substitua os valores abaixo
-   ──────────────────────────────────────────────────── */
-const SUPABASE_URL      = 'https://fhqrrxrkthpnesouwiys.supabase.co';
+const SUPABASE_URL = 'https://fhqrrxrkthpnesouwiys.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_FtoKh4ddJrPQkDB7rQDzMQ_d3QcOUTw';
 
+const Api = (() => {
+  const INTERNAL_AUTH_DOMAIN = 'barbearia.local';
 
-/* ──────────────────────────────────────────────────────
-   INICIALIZAÇÃO DO CLIENTE SUPABASE
-   O try/catch garante que uma chave inválida não quebre
-   toda a página — o sistema simplesmente entra em modo demo.
-   `supabaseClient` fica disponível globalmente para main.js.
-   ──────────────────────────────────────────────────── */
-let supabaseClient = null;
-try {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} catch (err) {
-  console.warn('[api.js] Supabase não inicializado. Modo demo ativo.', err);
-}
+  /** Cliente Supabase compartilhado entre todas as páginas. */
+  const client = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+  /** Verifica se o cliente Supabase foi criado corretamente. */
+  function isReady() {
+    return Boolean(client);
+  }
 
-/* ──────────────────────────────────────────────────────
-   DADOS DE DEMONSTRAÇÃO (DemoData)
-   Utilizados como fallback quando o Supabase está
-   indisponível. Espelham a estrutura real das tabelas.
-   ──────────────────────────────────────────────────── */
-const DemoData = {
+  /** Busca dados da barbearia por slug para montar cabeçalhos das páginas. */
+  async function getBarbershopBySlug(slug) {
+    if (!isReady()) return null;
+    const { data, error } = await client.from('barbearias').select('*').eq('slug', slug).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
 
-  /** Espelha a tabela `barbearias` */
-  barbearia: {
-    nome:             'Barbearia Premium',
-    endereco:         'Rua das Flores, 123 — Centro',
-    whatsapp:         '5511999999999',
-    hero_image:       'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&auto=format&fit=crop',
-    avaliacao_media:  4.9,
-    total_avaliacoes: 128,
-  },
+  /** Lista serviços ativos para o fluxo de agendamento do cliente.
+   * Processo: esta funcao abastece os cards clicaveis do index.html.
+   */
+  async function getServicesBySlug(slug) {
+    if (!isReady()) return [];
+    const { data, error } = await client
+      .from('servicos')
+      .select('id,nome,preco,duracao,ativo')
+      .eq('barbearia_slug', slug)
+      .eq('ativo', true)
+      .order('preco', { ascending: true });
+    if (error) throw error;
+    return data ? data : [];
+  }
 
-  /** Espelha a tabela `servicos` */
-  servicos: [
-    { id: '1', nome: 'Corte Degradê',  duracao: 40, preco: 45.00 },
-    { id: '2', nome: 'Barba Completa', duracao: 30, preco: 35.00 },
-    { id: '3', nome: 'Corte + Barba',  duracao: 60, preco: 70.00 },
-    { id: '4', nome: 'Hidratação',     duracao: 20, preco: 25.00 },
-    { id: '5', nome: 'Sobrancelha',    duracao: 15, preco: 15.00 },
-    { id: '6', nome: 'Platinado',      duracao: 90, preco: 120.00 },
-  ],
+  /** Retorna reservas e bloqueios do dia para calcular horários ocupados.
+   * Processo: a mesma fonte atende cliente (desabilita slots) e
+   * dashboard (detectar conflitos antes de bloquear).
+   */
+  async function getAppointmentsByDate(slug, date, barbeiroId) {
+    if (!isReady()) return [];
+    let query = client
+      .from('agendamentos')
+      .select('id,data,horario,status,cliente_nome,cliente_telefone,servico_nome,barbeiro_id')
+      .eq('barbearia_slug', slug)
+      .eq('data', date)
+      .neq('status', 'cancelado')
+      .order('horario', { ascending: true });
 
-  /** Espelha a tabela `portfolio` */
-  portfolio: [
-    { id: '1', image_url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=400&auto=format&fit=crop', descricao: 'Degradê clássico' },
-    { id: '2', image_url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop', descricao: 'Barba modelada' },
-    { id: '3', image_url: 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=400&auto=format&fit=crop', descricao: 'Corte social' },
-    { id: '4', image_url: 'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=400&auto=format&fit=crop', descricao: 'Barba completa' },
-    { id: '5', image_url: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=400&auto=format&fit=crop', descricao: 'Undercut moderno' },
-    { id: '6', image_url: 'https://images.unsplash.com/photo-1540553016722-983e48a2cd10?w=400&auto=format&fit=crop', descricao: 'Platinado' },
-  ],
+    /*
+      Quando o cliente escolhe um barbeiro, a agenda deve mostrar
+      apenas os horários daquele profissional.
+      O filtro abaixo aplica exatamente a regra solicitada:
+      .eq('barbeiro_id', selecionado)
+    */
+    if (barbeiroId) {
+      query = query.eq('barbeiro_id', barbeiroId);
+    }
 
-  /** Espelha a tabela `reviews` */
-  reviews: [
-    { id: '1', cliente_nome: 'Carlos Silva',   nota: 5, comentario: 'Melhor barbearia da cidade! Atendimento impecável.', created_at: '2026-04-10T14:30:00' },
-    { id: '2', cliente_nome: 'Rafael Santos',  nota: 5, comentario: 'Corte ficou perfeito! O profissional é muito habilidoso.', created_at: '2026-03-28T10:15:00' },
-    { id: '3', cliente_nome: 'Lucas Oliveira', nota: 4, comentario: 'Excelente trabalho, ambiente muito agradável.', created_at: '2026-03-15T16:00:00' },
-    { id: '4', cliente_nome: 'Pedro Alves',    nota: 5, comentario: 'Primeira vez aqui e já virei cliente fiel.', created_at: '2026-03-05T11:30:00' },
-  ],
-};
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ? data : [];
+  }
 
+  /** Cria um novo agendamento para o cliente.
+   * Processo: etapa final da jornada de reserva no index.html.
+   */
+  async function createAppointment(payload) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+    const { data, error } = await client.from('agendamentos').insert([payload]).select().single();
+    if (error) throw error;
+    return data;
+  }
 
-/* ──────────────────────────────────────────────────────
-   OBJETO Api
-   Cada método é auto-suficiente: verifica se o Supabase
-   está configurado, executa a query e retorna um valor
-   padronizado. Em caso de erro, registra no console e
-   retorna o dado de demonstração correspondente.
-   ──────────────────────────────────────────────────── */
-const Api = {
+  /** Cria bloqueio manual da agenda pelo barbeiro.
+   * Processo: usado somente quando nao existe reserva no horario.
+   */
+  async function createBlockedSlot(payload) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+    const { data, error } = await client.from('agendamentos').insert([payload]).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  /** Remove bloqueio manual pelo id do registro. */
+  async function deleteBlockedSlot(blockedId) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+    const { error } = await client
+      .from('agendamentos')
+      .delete()
+      .eq('id', blockedId)
+      .eq('status', 'bloqueado');
+
+    if (error) throw error;
+    return true;
+  }
 
   /**
-   * Verifica se o cliente Supabase está operacional.
-   * Retorna false quando as credenciais são padrão ou
-   * quando o createClient() falhou.
-   *
-   * @returns {boolean}
+   * Cancela um agendamento real atualizando o status para 'cancelado'.
+   * Usado no painel do colaborador ao optar por "cancelar e bloquear" após conflito.
+   * A guarda .neq('status','bloqueado') protege registros de bloqueio de alteração acidental.
    */
-  isConfigured() {
-    return (
-      supabaseClient !== null &&
-      !SUPABASE_URL.includes('YOUR_PROJECT_ID')
-    );
-  },
+  async function cancelAppointment(appointmentId) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+    const { data, error } = await client
+      .from('agendamentos')
+      .update({ status: 'cancelado' })
+      .eq('id', appointmentId)
+      .neq('status', 'bloqueado')
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data;
+  }
 
+  /** Lista bloqueios futuros para exibição no dashboard.
+   * Processo: alimenta visual de controle da agenda do barbeiro.
+   */
+  async function getBlockedSlots(slug, startDate, barbeiroId) {
+    if (!isReady()) return [];
+    let query = client
+      .from('agendamentos')
+      .select('id,data,horario,status,barbeiro_id')
+      .eq('barbearia_slug', slug)
+      .eq('status', 'bloqueado')
+      .gte('data', startDate)
+      .order('data', { ascending: true })
+      .order('horario', { ascending: true });
 
-  /* ──────────────────────────────────────────────────
-     fetchBarbearia(slug)
-     O QUE FAZ: Busca os dados completos de uma barbearia
-                pelo seu slug único.
-     PARÂMETROS:
-       slug {string} — ex: 'vzp' (vem do parâmetro ?b= da URL)
-     IMPACTO NO BANCO:
-       SELECT * FROM barbearias WHERE slug = slug LIMIT 1
-     RETORNA: objeto barbearia ou DemoData.barbearia
-  ────────────────────────────────────────────────── */
-  async fetchBarbearia(slug) {
-    if (!this.isConfigured()) return DemoData.barbearia;
-    try {
-      const { data, error } = await supabaseClient
-        .from('barbearias')
-        .select('*')
-        .eq('slug', slug)
+    /*
+      No dashboard, também podemos ler bloqueios por barbeiro
+      para manter consistência com o filtro de agenda individual.
+    */
+    if (barbeiroId) {
+      query = query.eq('barbeiro_id', barbeiroId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ? data : [];
+  }
+
+  /**
+   * Lista equipe de barbeiros da unidade (barbearia).
+   * Cada barbeiro pertence a uma barbearia_id e possui id único.
+   */
+  async function getBarbersByBarbeariaId(barbeariaId) {
+    if (!isReady()) return [];
+    const { data, error } = await client
+      .from('barbeiros')
+      .select('*')
+      .eq('barbearia_id', barbeariaId)
+      .order('nome', { ascending: true });
+    if (error) throw error;
+    return data ? data : [];
+  }
+
+  /**
+   * Login manual do colaborador diretamente na tabela barbeiros.
+   * Ignora auth.users por decisão arquitetural do projeto.
+   */
+  async function getCollaboratorByCredentials(usuario, senha) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const normalizedUsuario = String(usuario || '').trim().toLowerCase();
+    const normalizedSenha = String(senha || '').trim();
+    if (!normalizedUsuario || !normalizedSenha) {
+      return null;
+    }
+
+    const { data, error } = await client
+      .from('barbeiros')
+      .select('*')
+      .eq('usuario', normalizedUsuario)
+      .eq('senha', normalizedSenha)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || null;
+  }
+
+  /** Busca colaborador pelo ID para validar sessão manual no dashboard-colaborador. */
+  async function getCollaboratorById(barbeiroId) {
+    if (!isReady()) return null;
+    const { data, error } = await client
+      .from('barbeiros')
+      .select('id,nome,usuario,foto_url,servicos,servicos_json,preco_base,status,barbearia_id,barbearia_slug')
+      .eq('id', barbeiroId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || null;
+  }
+
+  /**
+   * Busca o colaborador pelo user_id autenticado.
+   * Usado no dashboard-colaborador para carregar perfil e contexto da unidade.
+   */
+  async function getBarberByUserId(userId) {
+    if (!isReady()) return null;
+    const { data, error } = await client
+      .from('barbeiros')
+      .select('id,nome,email,foto_url,servicos,preco_base,status,barbearia_id,barbearia_slug,user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  /**
+   * Atualiza perfil do colaborador logado.
+   */
+  async function updateBarberProfile(barbeiroId, { fotoUrl, servicos, precoBase }) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+    const normalizedServices = Array.isArray(servicos) ? servicos : [];
+    const payload = {
+      foto_url: fotoUrl || null,
+      servicos: normalizedServices.length ? normalizedServices.map((item) => item.nome).join(', ') : null,
+      servicos_json: normalizedServices,
+      preco_base: Number.isFinite(precoBase) ? Number(precoBase) : null,
+    };
+
+    const { data, error } = await client
+      .from('barbeiros')
+      .update(payload)
+      .eq('id', barbeiroId)
+      .select('id,nome,usuario,email,foto_url,servicos,servicos_json,preco_base,status,barbearia_id,barbearia_slug,user_id')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Lista próximos atendimentos de um colaborador.
+   */
+  async function getUpcomingAppointmentsByBarber(barbeariaSlug, barbeiroId, startDate, limit) {
+    if (!isReady()) return [];
+
+    const { data, error } = await client
+      .from('agendamentos')
+      .select('id,data,horario,status,cliente_nome,cliente_telefone,servico_nome,barbeiro_id')
+      .eq('barbearia_slug', barbeariaSlug)
+      .eq('barbeiro_id', barbeiroId)
+      .gte('data', startDate)
+      .neq('status', 'cancelado')
+      .order('data', { ascending: true })
+      .order('horario', { ascending: true })
+      .limit(Number(limit) || 30);
+
+    if (error) throw error;
+    return data ? data : [];
+  }
+
+  /**
+   * Cria conta de colaborador com cliente isolado para nao sobrescrever
+   * a sessao atual do dono no navegador.
+   */
+  async function createCollaboratorAccount(email, password) {
+    if (!window.supabase) throw new Error('SDK Supabase indisponivel.');
+
+    const isolatedClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+    const { data, error } = await isolatedClient.auth.signUp({ email, password });
+    if (error) throw error;
+
+    const userId = data?.user?.id || null;
+    if (!userId) {
+      throw new Error('Nao foi possivel criar o usuario de acesso do colaborador.');
+    }
+
+    return { userId, needsEmailConfirmation: !data?.session };
+  }
+
+  /**
+   * Converte nome de usuário em e-mail interno para Auth.
+   * Exemplo: "jota.barber" -> "jota.barber@barbearia.local"
+   */
+  function toInternalEmailFromUsername(username) {
+    const normalized = String(username || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '');
+
+    if (!normalized) {
+      throw new Error('Nome de usuario invalido para criar acesso interno.');
+    }
+
+    return `${normalized}@${INTERNAL_AUTH_DOMAIN}`;
+  }
+
+  /**
+   * Fluxo unificado do dono para cadastrar colaborador:
+   * 1) cria conta de acesso (Auth)
+   * 2) vincula colaborador na tabela barbeiros
+   */
+  async function createCollaboratorWithAccount({
+    barbeariaId,
+    barbeariaSlug,
+    nome,
+    username,
+    password,
+    fotoUrl,
+    servicos,
+    precoBase,
+    status,
+  }) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const normalizedUsername = String(username || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '');
+    const normalizedEmail = toInternalEmailFromUsername(normalizedUsername);
+    const normalizedName = String(nome || '').trim();
+
+    if (!normalizedName || !normalizedUsername || !password) {
+      throw new Error('Nome, usuario e senha sao obrigatorios.');
+    }
+
+    const { userId, needsEmailConfirmation } = await createCollaboratorAccount(normalizedEmail, password);
+
+    const payload = {
+      barbearia_id: barbeariaId,
+      barbearia_slug: barbeariaSlug,
+      user_id: userId,
+      nome: normalizedName,
+      email: normalizedEmail,
+      foto_url: fotoUrl || null,
+      servicos: servicos || null,
+      preco_base: Number.isFinite(precoBase) ? Number(precoBase) : null,
+      status: status || 'ativo',
+    };
+
+    const { data, error } = await client
+      .from('barbeiros')
+      .insert([payload])
+      .select('id,nome,email,foto_url,servicos,preco_base,status,barbearia_id,barbearia_slug,user_id')
+      .single();
+
+    if (error) {
+      const isDuplicate = error.code === '23505' || String(error.message || '').toLowerCase().includes('duplicate');
+      if (isDuplicate) {
+        throw new Error('Ja existe colaborador com este nome de usuario nesta equipe.');
+      }
+      throw error;
+    }
+
+    return { colaborador: data, needsEmailConfirmation, internalEmail: normalizedEmail };
+  }
+
+  /**
+   * Cadastro manual de colaborador (sem auth.users), usando apenas
+   * nome + usuario + senha + barbearia_id.
+   */
+  async function createCollaboratorManual({ barbeariaId, barbeariaSlug, nome, usuario, senha }) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const normalizedNome = String(nome || '').trim();
+    const normalizedUsuario = String(usuario || '').trim().toLowerCase();
+    const normalizedSenha = String(senha || '').trim();
+
+    if (!normalizedNome || !normalizedUsuario || !normalizedSenha) {
+      throw new Error('Nome, usuario e senha sao obrigatorios.');
+    }
+
+    const payload = {
+      barbearia_id: barbeariaId,
+      barbearia_slug: barbeariaSlug,
+      nome: normalizedNome,
+      usuario: normalizedUsuario,
+      senha: normalizedSenha,
+      status: 'ativo',
+    };
+
+    const { data, error } = await client
+      .from('barbeiros')
+      .insert([payload])
+      .select('*')
+      .single();
+
+    if (error) {
+      const isDuplicate = error.code === '23505' || String(error.message || '').toLowerCase().includes('duplicate');
+      if (isDuplicate) {
+        throw new Error('Ja existe colaborador com este usuario nesta barbearia.');
+      }
+      throw error;
+    }
+
+    return data;
+  }
+
+  /** Ativa ou inativa colaborador para controle de permissões. */
+  async function updateCollaboratorStatus(barbeiroId, status) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const allowed = ['ativo', 'inativo', 'pendente'];
+    if (!allowed.includes(status)) {
+      throw new Error('Status invalido para colaborador.');
+    }
+
+    const { data, error } = await client
+      .from('barbeiros')
+      .update({ status })
+      .eq('id', barbeiroId)
+      .select('id,nome,email,status,barbearia_id,barbearia_slug,user_id')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Remove colaborador da equipe pelo id.
+   * Observacao: a conta em auth.users nao pode ser removida via client-side anon.
+   * O recomendado e usar Edge Function com service role para revogar acesso total.
+   */
+  async function deleteCollaboratorById(barbeiroId) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const { error } = await client
+      .from('barbeiros')
+      .delete()
+      .eq('id', barbeiroId);
+
+    if (error) throw error;
+    return true;
+  }
+
+  /**
+   * Cadastra barbeiro na equipe da barbearia.
+   * Usado no dashboard para adicionar colaboradores.
+   */
+  async function addBarberToTeam({ barbeariaId, barbeariaSlug, nome, fotoUrl, userId, status }) {
+    if (!isReady()) throw new Error('Supabase indisponivel.');
+
+    const fullPayload = {
+      barbearia_id: barbeariaId,
+      barbearia_slug: barbeariaSlug,
+      nome,
+      foto_url: fotoUrl || null,
+      user_id: userId || null,
+      status: status || 'ativo',
+    };
+
+    // Alguns bancos podem não ter todas as colunas opcionais.
+    // Tenta payload completo e faz fallback para payloads mínimos.
+    const payloadVariants = [
+      fullPayload,
+      {
+        barbearia_id: barbeariaId,
+        barbearia_slug: barbeariaSlug,
+        nome,
+        user_id: userId || null,
+        status: status || 'ativo',
+      },
+      {
+        barbearia_id: barbeariaId,
+        barbearia_slug: barbeariaSlug,
+        nome,
+        user_id: userId || null,
+      },
+      {
+        barbearia_slug: barbeariaSlug,
+        nome,
+        user_id: userId || null,
+      },
+      {
+        barbearia_slug: barbeariaSlug,
+        nome,
+      },
+    ];
+
+    let lastError = null;
+
+    for (const payload of payloadVariants) {
+      const { data, error } = await client
+        .from('barbeiros')
+        .insert([payload])
+        .select()
         .single();
-      if (error) throw error;
-      return data || DemoData.barbearia;
-    } catch (err) {
-      console.warn('[api.js] fetchBarbearia → fallback demo:', err.message);
-      return DemoData.barbearia;
-    }
-  },
 
-
-  /* ──────────────────────────────────────────────────
-     fetchServicos(slug)
-     O QUE FAZ: Busca todos os serviços ativos de uma
-                barbearia, ordenados do mais barato ao
-                mais caro.
-     PARÂMETROS:
-       slug {string} — slug da barbearia
-     IMPACTO NO BANCO:
-       SELECT * FROM servicos
-         WHERE barbearia_slug = slug AND ativo = true
-         ORDER BY preco ASC
-     RETORNA: array de serviços ou DemoData.servicos
-  ────────────────────────────────────────────────── */
-  async fetchServicos(slug) {
-    if (!this.isConfigured()) return DemoData.servicos;
-    try {
-      const { data, error } = await supabaseClient
-        .from('servicos')
-        .select('*')
-        .eq('barbearia_slug', slug)
-        .eq('ativo', true)
-        .order('preco', { ascending: true });
-      if (error) throw error;
-      return data?.length ? data : DemoData.servicos;
-    } catch (err) {
-      console.warn('[api.js] fetchServicos → fallback demo:', err.message);
-      return DemoData.servicos;
-    }
-  },
-
-
-  /* ──────────────────────────────────────────────────
-     fetchAgendamentos(slug, dateStr, barbeiroId?)
-     O QUE FAZ: Retorna os horários ocupados (não cancelados)
-                para uma data específica. Usado para bloquear
-                visualmente os slots de hora na grade.
-
-     PARÂMETROS:
-       slug      {string}      — slug da barbearia
-       dateStr   {string}      — formato 'YYYY-MM-DD'
-       barbeiroId {string|null} — UUID do barbeiro (opcional).
-                                  Quando fornecido, filtra apenas
-                                  os horários DAQUELE profissional.
-
-     IMPACTO NO BANCO:
-       SELECT horario FROM agendamentos
-         WHERE barbearia_slug = slug
-           AND data            = dateStr
-           AND status         != 'cancelado'
-           [AND barbeiro_id   = barbeiroId]
-
-     NOTA SOBRE STATUS BLOQUEADOS:
-       A query usa `.neq('status', 'cancelado')`, portanto
-       retorna horários com status: 'pendente', 'confirmado'
-       e 'bloqueado'. TODOS esses são tratados como ocupados
-       pela ui.js — evitando que clientes agendem sobre um
-       bloqueio manual feito pelo barbeiro no dashboard.
-
-     NOTA TÉCNICA — TIPO TIME DO POSTGRESQL:
-       Se o campo `horario` for do tipo TIME (não TEXT),
-       o Supabase retorna 'HH:MM:SS'. A ui.js usa
-       `h.startsWith(slot)` para comparar corretamente
-       com os slots no formato 'HH:MM'.
-
-     RETORNA: array de strings de horário ou []
-  ────────────────────────────────────────────────── */
-  async fetchAgendamentos(slug, dateStr, barbeiroId = null) {
-    if (!this.isConfigured()) return [];
-    try {
-      // UUID_REGEX: garante que barbeiroId é um UUID PostgreSQL válido
-      // antes de usar como filtro (evita queries mal formadas)
-      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-      let query = supabaseClient
-        .from('agendamentos')
-        .select('horario')
-        .eq('barbearia_slug', slug)
-        .eq('data', dateStr)
-        .neq('status', 'cancelado');
-
-      // Filtra pelo barbeiro somente quando um UUID válido é fornecido
-      if (barbeiroId && UUID_RE.test(barbeiroId)) {
-        query = query.eq('barbeiro_id', barbeiroId);
+      if (!error) {
+        return data;
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ? data.map(a => String(a.horario)) : [];
-    } catch (err) {
-      console.warn('[api.js] fetchAgendamentos → erro:', err.message);
-      return [];
+      lastError = error;
+      const msg = String(error.message || '').toLowerCase();
+      const isMissingColumn = error.code === '42703' || msg.includes('column') && msg.includes('does not exist');
+
+      // Se for erro de coluna inexistente, tenta o próximo payload.
+      if (isMissingColumn) {
+        continue;
+      }
+
+      // Para outros erros (ex: RLS), interrompe e retorna erro explícito.
+      break;
     }
-  },
 
+    if (lastError) {
+      const msg = String(lastError.message || '').toLowerCase();
+      const isRls = lastError.code === '42501' || msg.includes('row-level security') || msg.includes('permission denied');
 
-  /* ──────────────────────────────────────────────────
-     fetchPortfolio(slug)
-     O QUE FAZ: Busca as últimas 12 imagens do portfólio
-                da barbearia.
-     PARÂMETROS:
-       slug {string} — slug da barbearia
-     IMPACTO NO BANCO:
-       SELECT * FROM portfolio
-         WHERE barbearia_slug = slug
-         ORDER BY created_at DESC
-         LIMIT 12
-     RETORNA: array de itens ou DemoData.portfolio
-  ────────────────────────────────────────────────── */
-  async fetchPortfolio(slug) {
-    if (!this.isConfigured()) return DemoData.portfolio;
-    try {
-      const { data, error } = await supabaseClient
-        .from('portfolio')
-        .select('*')
-        .eq('barbearia_slug', slug)
-        .order('created_at', { ascending: false })
-        .limit(12);
-      if (error) throw error;
-      return data?.length ? data : DemoData.portfolio;
-    } catch (err) {
-      console.warn('[api.js] fetchPortfolio → fallback demo:', err.message);
-      return DemoData.portfolio;
+      if (isRls) {
+        throw new Error('Permissao negada para inserir colaborador. Verifique a policy de INSERT da tabela barbeiros.');
+      }
+
+      throw new Error(lastError.message || 'Falha ao cadastrar colaborador na equipe.');
     }
-  },
 
+    throw new Error('Falha ao cadastrar colaborador na equipe.');
+  }
 
-  /* ──────────────────────────────────────────────────
-     fetchReviews(slug)
-     O QUE FAZ: Busca as avaliações mais recentes da
-                barbearia.
-     PARÂMETROS:
-       slug {string} — slug da barbearia
-     IMPACTO NO BANCO:
-       SELECT * FROM reviews
-         WHERE barbearia_slug = slug
-         ORDER BY created_at DESC
-         LIMIT 20
-     RETORNA: array de reviews ou DemoData.reviews
-  ────────────────────────────────────────────────── */
-  async fetchReviews(slug) {
-    if (!this.isConfigured()) return DemoData.reviews;
-    try {
-      const { data, error } = await supabaseClient
-        .from('reviews')
-        .select('*')
-        .eq('barbearia_slug', slug)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data?.length ? data : DemoData.reviews;
-    } catch (err) {
-      console.warn('[api.js] fetchReviews → fallback demo:', err.message);
-      return DemoData.reviews;
-    }
-  },
+  /**
+   * Busca barbearias por nome ou slug para fluxo de colaborador no portal.
+   */
+  async function searchBarbershops(term) {
+    if (!isReady()) return [];
+    const safeTerm = String(term || '').trim();
+    if (!safeTerm) return [];
 
+    const { data, error } = await client
+      .from('barbearias')
+      .select('id,nome,slug,whatsapp')
+      .or(`nome.ilike.%${safeTerm}%,slug.ilike.%${safeTerm}%`)
+      .order('nome', { ascending: true })
+      .limit(8);
+    if (error) throw error;
+    return data ? data : [];
+  }
 
-  /* ──────────────────────────────────────────────────
-     saveAgendamento(payload)
-     O QUE FAZ: Insere um novo agendamento na tabela
-                `agendamentos`. Simula latência no modo demo.
+  /* ─────────────────────────────────────────────────────
+     PORTFÓLIO E LOGO
 
-     PARÂMETROS:
-       payload {object} — objeto com os campos do agendamento:
-         ├── servico_nome     {string}  — nome do serviço
-         ├── servico_id       {string}  — UUID (só se não for demo)
-         ├── cliente_nome     {string}  — nome do cliente
-         ├── cliente_telefone {string}  — somente dígitos
-         ├── data             {string}  — formato 'YYYY-MM-DD'
-         ├── horario          {string}  — formato 'HH:MM'
-         ├── status           {string}  — sempre 'pendente'
-         ├── barbearia_slug   {string}  — slug (omitido no demo)
-         └── barbeiro_id      {string}  — UUID (opcional)
+     TABLE: portfolio
+       id            — PK gerado pelo banco
+       barbearia_id  — FK para barbearias.id
+       image_url     — URL pública do Supabase Storage
+       descricao     — texto livre sobre o corte
 
-     IMPACTO NO BANCO:
-       INSERT INTO agendamentos VALUES (payload)
+     TABLE: barbearias
+       logo_url      — URL pública do logo (coluna adicionada)
 
-     RETORNA: { success: boolean, data?, error? }
-  ────────────────────────────────────────────────── */
-  async saveAgendamento(payload) {
-    if (!this.isConfigured()) {
-      // Simula latência de rede para parecer real na demo
-      await new Promise(resolve => setTimeout(resolve, 800));
-      return { success: true, demo: true };
-    }
-    try {
-      const { data, error } = await supabaseClient
-        .from('agendamentos')
-        .insert([payload])
-        .select();
-      if (error) throw error;
-      return { success: true, data };
-    } catch (err) {
-      console.error('[api.js] saveAgendamento → erro:', err.message);
-      return { success: false, error: err.message };
-    }
-  },
-};
+     FLUXO DO UPLOAD (combinado com storage.js):
+       1) storage.js faz upload → retorna URL pública
+       2) api.js salva essa URL no banco
+       3) Frontend usa a URL armazenada para renderizar <img>
+  ───────────────────────────────────────────────────── */
+
+  /**
+   * Lista as fotos do portfólio de uma barbearia.
+   * Usado na página do cliente para exibir os trabalhos.
+   *
+   * @param {string|number} barbeariaId — id da linha em `barbearias`
+   * @returns {Promise<Array<{ id, image_url, descricao }>>}
+   */
+  async function getPortfolioByBarbearia(barbeariaId) {
+    if (!isReady()) return [];
+    const { data, error } = await client
+      .from('portfolio')
+      .select('id,image_url,descricao')
+      .eq('barbearia_id', barbeariaId)
+      .order('id', { ascending: false });
+    if (error) throw error;
+    return data ? data : [];
+  }
+
+  /**
+   * Insere uma nova foto no portfólio da barbearia.
+   *
+   * PROCESSO:
+   *   1) storage.js já fez o upload e gerou a URL pública
+   *   2) Esta função salva { barbearia_id, image_url, descricao }
+   *      na tabela `portfolio`
+   *   3) A URL agora está persistida e disponível para o cliente
+   *
+   * @param {{ barbeariaId: string|number, imageUrl: string, descricao: string }} payload
+   * @returns {Promise<Object>} row inserida
+   */
+  async function addPortfolioItem({ barbeariaId, imageUrl, descricao }) {
+    if (!isReady()) throw new Error('Supabase indisponível.');
+    const { data, error } = await client
+      .from('portfolio')
+      .insert([{ barbearia_id: barbeariaId, image_url: imageUrl, descricao }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Atualiza a coluna `logo_url` na tabela `barbearias`.
+   *
+   * PROCESSO:
+   *   1) storage.js fez upload do logo e gerou URL pública
+   *   2) Esta função persiste a URL na linha da barbearia
+   *   3) O header do dashboard e do cliente poderá exibir o logo
+   *
+   * @param {string} barbeariaId — id da linha em `barbearias`
+   * @param {string} logoUrl     — URL pública gerada pelo Storage
+   * @returns {Promise<Object>} row atualizada
+   */
+  async function updateBarbeariaLogo(barbeariaId, logoUrl) {
+    if (!isReady()) throw new Error('Supabase indisponível.');
+    const { data, error } = await client
+      .from('barbearias')
+      .update({ logo_url: logoUrl })
+      .eq('id', barbeariaId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  return {
+    client,
+    isReady,
+    getBarbershopBySlug,
+    getServicesBySlug,
+    getAppointmentsByDate,
+    createAppointment,
+    createBlockedSlot,
+    deleteBlockedSlot,
+    cancelAppointment,
+    getBlockedSlots,
+    getBarbersByBarbeariaId,
+    getCollaboratorByCredentials,
+    getCollaboratorById,
+    getBarberByUserId,
+    updateBarberProfile,
+    getUpcomingAppointmentsByBarber,
+    addBarberToTeam,
+    createCollaboratorWithAccount,
+    createCollaboratorManual,
+    updateCollaboratorStatus,
+    deleteCollaboratorById,
+    searchBarbershops,
+    getPortfolioByBarbearia,
+    addPortfolioItem,
+    updateBarbeariaLogo,
+  };
+})();
+
+window.Api = Api;

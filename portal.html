@@ -1,195 +1,192 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BarberSaaS | Acesso</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-    <style type="text/disabled">
-        .glass {
-            background: rgba(255,255,255,0.04);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
-        .input-dark {
-            display: block; width: 100%;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 12px;
-            padding: 13px 16px;
-            font-family: 'Inter', sans-serif;
-            font-size: 15px;
-            color: #fff;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .input-dark:focus  { border-color: #d4af37; }
-        .input-dark::placeholder { color: #555; }
-        .btn-gold {
-            display: block; width: 100%;
-            padding: 14px;
-            background: #d4af37;
-            color: #000; font-weight: 800; font-size: 15px;
-            font-family: 'Inter', sans-serif;
-            border: none; border-radius: 14px;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.15s;
-        }
-        .btn-gold:hover   { background: #b8962e; }
-        .btn-gold:active  { transform: scale(0.98); }
-        .btn-gold:disabled { background: #333; color: #666; cursor: not-allowed; }
-        .animate-fade-in  { animation: fadeIn  0.4s ease forwards; }
-        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) forwards; }
-        @keyframes fadeIn  { from { opacity: 0 }                         to { opacity: 1 } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: translateY(0) } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BarberSaaS | Bem-vindo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body class="bg-[#050505] text-white font-['Inter'] min-h-screen flex items-center justify-center p-6">
+<body class="min-h-screen bg-[var(--bg)] text-white">
 
-    <!-- Tela: Seleção de perfil -->
-    <div id="selecao-perfil" class="w-full max-w-md space-y-8 text-center animate-fade-in">
-        <header class="mb-12">
-            <h1 class="text-4xl font-black uppercase tracking-tighter italic">
-                Barber<span class="text-[#d4af37]">SaaS</span>
-            </h1>
-            <p class="text-gray-500 text-xs font-bold tracking-[0.3em] mt-2 uppercase">Escolha seu perfil</p>
-        </header>
+  <!--
+    PROCESSO: HERO DA PÁGINA DE ENTRADA
+    Apresenta a plataforma e oferece dois pontos de entrada:
+      - "Sou Barbeiro"   → abre modal de autenticação
+      - "Quero Agendar"  → abre modal de slug do cliente
+  -->
+  <main class="flex min-h-screen flex-col items-center justify-center px-6 py-16">
+    <div class="w-full max-w-lg text-center">
+      <p class="premium-chip mx-auto">BARBERSAAS</p>
+      <h1 class="mt-5 text-5xl font-extrabold leading-tight md:text-6xl">
+        Sua barbearia<br>no próximo nível
+      </h1>
+      <p class="mt-4 text-sm text-zinc-400 md:text-base">
+        Agendamento inteligente, controle de agenda e gestão completa — tudo em um lugar.
+      </p>
 
-        <div class="grid grid-cols-1 gap-4">
-            <!-- Botão: Sou Barbeiro -->
-            <button onclick="mostrarLoginBarbeiro()"
-                    class="glass p-8 rounded-[2rem] border border-white/5 hover:border-[#d4af37]/50 transition-all group">
-                <div class="bg-[#d4af37]/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                    <svg class="w-8 h-8 text-[#d4af37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                </div>
-                <h2 class="text-xl font-bold uppercase italic">Sou Barbeiro</h2>
-                <p class="text-gray-500 text-sm mt-2">Gerenciar minha agenda e clientes</p>
-            </button>
-
-            <!-- Botão: Quero Agendar -->
-            <button onclick="irParaAgendamento()"
-                    class="glass p-8 rounded-[2rem] border border-white/5 hover:border-cyan-500/50 transition-all group">
-                <div class="bg-cyan-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                    <svg class="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z"/>
-                    </svg>
-                </div>
-                <h2 class="text-xl font-bold uppercase italic">Quero Agendar</h2>
-                <p class="text-gray-500 text-sm mt-2">Escolher profissional e horário</p>
-            </button>
-        </div>
-    </div>
-
-    <!-- Tela: Login do Barbeiro -->
-    <div id="login-barbeiro" class="hidden w-full max-w-md space-y-6 animate-slide-up">
-        <button onclick="voltarSelecao()"
-                class="text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white">
-            &larr; Voltar
+      <!-- PROCESSO: DUAL CTA
+        Dois fluxos distintos: barbeiro autentica via modal,
+        cliente informa o slug da barbearia e é redirecionado.
+      -->
+      <div class="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
+        <button id="btn-barbeiro" class="btn-gold px-8 py-4 text-base">
+          Sou Barbeiro
         </button>
-        <div class="glass p-8 rounded-[2.5rem] border border-white/5">
-            <h2 class="text-2xl font-black uppercase mb-6 italic">Acesso Restrito</h2>
-            <div id="login-error" class="hidden mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm"></div>
-            <div class="space-y-4">
-                <input type="email"    id="email"    placeholder="E-mail"  class="input-dark">
-                <input type="password" id="password" placeholder="Senha"   class="input-dark">
-                <button onclick="realizarLogin()" id="btn-login" class="btn-gold mt-4">
-                    ENTRAR NO PAINEL
-                </button>
-            </div>
-        </div>
+        <button id="btn-cliente" class="btn-outline px-8 py-4 text-base">
+          Quero Agendar
+        </button>
+      </div>
     </div>
+  </main>
 
-    <script src="assets/js/api.js"></script>
+  <!-- ══════════════════════════════════════════════════
+    MODAL DE AUTENTICAÇÃO DO BARBEIRO
+    Três telas em sequência, com transição fade entre elas:
+      Tela 1 — modal-choose   → escolhe Login ou Cadastro
+      Tela 2 — modal-login    → formulário do dono (e-mail + senha)
+      Tela 3 — modal-register → formulário de cadastro completo
+  ══════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+    <div id="modal-box" class="modal-box">
 
-    <script>
-        function mostrarLoginBarbeiro() {
-            document.getElementById('selecao-perfil').classList.add('hidden');
-            document.getElementById('login-barbeiro').classList.remove('hidden');
-        }
+      <!-- TELA 1 — Escolha de ação -->
+      <div id="modal-choose" class="modal-screen">
+        <button class="modal-close" id="close-modal-choose" aria-label="Fechar">&times;</button>
+        <p class="premium-chip mb-5">ÁREA DO BARBEIRO</p>
+        <h2 class="mb-2 text-2xl font-extrabold">Como deseja entrar?</h2>
+        <p class="mb-8 text-sm text-zinc-400">Acesse sua conta ou crie uma nova para sua barbearia.</p>
+        <div class="flex flex-col gap-3">
+          <button id="go-login" class="btn-gold w-full py-4 text-base">Login</button>
+          <button id="go-register" class="btn-outline w-full py-4 text-base">Cadastrar Minha Barbearia</button>
+          <button id="go-collab" class="btn-outline w-full py-4 text-base">Sou um Barbeiro Colaborador</button>
+        </div>
+      </div>
 
-        function voltarSelecao() {
-            document.getElementById('login-barbeiro').classList.add('hidden');
-            document.getElementById('selecao-perfil').classList.remove('hidden');
-            document.getElementById('login-error').classList.add('hidden');
-        }
+      <!-- TELA 2 — Formulário de Login -->
+      <div id="modal-login" class="modal-screen" hidden>
+        <button class="modal-back" id="back-from-login" aria-label="Voltar">← Voltar</button>
+        <button class="modal-close" id="close-modal-login" aria-label="Fechar">&times;</button>
+        <p class="premium-chip mb-5">LOGIN</p>
+        <h2 class="mb-6 text-2xl font-extrabold">Acessar painel</h2>
+        <!--
+             PROCESSO: LOGIN
+          1) Valida campos no client
+          2) Chama supabase.auth.signInWithPassword
+          3) checkRole detecta barbearia do user_id
+          4) Persiste slug no localStorage
+             5) Redireciona para dashboard-dono ou dashboard-colaborador
+        -->
+        <form id="form-login" novalidate>
+             <label class="form-label" for="login-email">E-mail do dono</label>
+             <input id="login-email" class="input-premium mb-4" type="text"
+               placeholder="Ex: dono@email.com" required autocomplete="username">
+          <label class="form-label" for="login-password">Senha</label>
+          <input id="login-password" class="input-premium mb-6" type="password"
+                 placeholder="••••••••" required autocomplete="current-password">
+          <p id="login-error" class="form-error mb-4" aria-live="polite" hidden></p>
+          <button id="btn-login-submit" class="btn-gold w-full py-4 text-base" type="submit"
+                  data-label="Entrar">Entrar</button>
+        </form>
+      </div>
 
-        function mostrarErro(msg) {
-            const el = document.getElementById('login-error');
-            el.textContent = msg;
-            el.classList.remove('hidden');
-        }
+      <!-- TELA 3 — Formulário de Cadastro -->
+      <div id="modal-register" class="modal-screen" hidden>
+        <button class="modal-back" id="back-from-register" aria-label="Voltar">← Voltar</button>
+        <button class="modal-close" id="close-modal-register" aria-label="Fechar">&times;</button>
+        <p class="premium-chip mb-5">CADASTRO</p>
+        <h2 class="mb-6 text-2xl font-extrabold">Criar minha barbearia</h2>
+        <!--
+          PROCESSO: CADASTRO
+          1) Valida todos os campos no client
+          2) supabase.auth.signUp → cria usuário
+          3) INSERT em `barbearias` com o user_id recebido
+          4) Persiste slug no localStorage
+          5) Redireciona → dashboard-dono.html?b=<slug>
+        -->
+        <form id="form-register" novalidate>
+          <label class="form-label" for="reg-nome">Nome da barbearia</label>
+          <input id="reg-nome" class="input-premium mb-4" type="text"
+                 placeholder="Ex: Barbearia do João" required>
+          <label class="form-label" for="reg-slug">Slug (identificador único)</label>
+          <input id="reg-slug" class="input-premium mb-1" type="text"
+                 placeholder="Ex: joao-barber" required>
+          <p class="mb-4 text-xs text-zinc-500">
+            URL: ?b=<span id="slug-preview">seu-slug</span>
+          </p>
+          <label class="form-label" for="reg-whatsapp">WhatsApp (com DDD)</label>
+          <input id="reg-whatsapp" class="input-premium mb-4" type="tel"
+                 placeholder="Ex: 11999998888" required>
+          <label class="form-label" for="reg-email">E-mail</label>
+          <input id="reg-email" class="input-premium mb-4" type="email"
+                 placeholder="seu@email.com" required autocomplete="email">
+          <label class="form-label" for="reg-password">Senha (mín. 8 caracteres)</label>
+          <input id="reg-password" class="input-premium mb-6" type="password"
+                 placeholder="••••••••" required minlength="8" autocomplete="new-password">
+          <p id="register-error" class="form-error mb-4" aria-live="polite" hidden></p>
+          <button id="btn-register-submit" class="btn-gold w-full py-4 text-base" type="submit"
+                  data-label="Criar conta e entrar">Criar conta e entrar</button>
+        </form>
+      </div>
 
-        async function realizarLogin() {
-            const email    = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const btn      = document.getElementById('btn-login');
+      <!-- TELA 4 — Barbeiro colaborador -->
+      <div id="modal-collab" class="modal-screen" hidden>
+        <button class="modal-back" id="back-from-collab" aria-label="Voltar">← Voltar</button>
+        <button class="modal-close" id="close-modal-collab" aria-label="Fechar">&times;</button>
+        <p class="premium-chip mb-5">COLABORADOR</p>
+        <h2 class="mb-2 text-2xl font-extrabold">Entrar como colaborador</h2>
+        <p class="mb-4 text-sm text-zinc-400">Use o usuario e senha cadastrados pelo dono da barbearia.</p>
 
-            document.getElementById('login-error').classList.add('hidden');
+        <form id="form-collab-login" novalidate>
+          <label class="form-label" for="collab-login-username">Usuario</label>
+          <input id="collab-login-username" class="input-premium mb-4" type="text" placeholder="Ex: joao.barber" required autocomplete="username">
 
-            if (!email || !password) {
-                mostrarErro('Preencha e-mail e senha.');
-                return;
-            }
+          <label class="form-label" for="collab-login-password">Senha</label>
+          <input id="collab-login-password" class="input-premium mb-6" type="password" placeholder="••••••••" required autocomplete="current-password">
 
-            btn.textContent = 'AUTENTICANDO...';
-            btn.disabled    = true;
+          <p id="collab-error" class="form-error mb-4" aria-live="polite" hidden></p>
+          <button id="btn-collab-login-submit" class="btn-gold w-full py-4 text-base" type="submit" data-label="Entrar como colaborador">Entrar como colaborador</button>
+        </form>
+      </div>
 
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    </div>
+  </div>
 
-            if (error) {
-                mostrarErro('E-mail ou senha incorretos.');
-                btn.textContent = 'ENTRAR NO PAINEL';
-                btn.disabled    = false;
-                return;
-            }
+  <!-- ══════════════════════════════════════════════════
+    MODAL DE ENTRADA DO CLIENTE
+    Solicita o slug da barbearia antes de redirecionar
+    para o fluxo de agendamento (index.html?b=<slug>).
+  ══════════════════════════════════════════════════ -->
+  <div id="modal-cliente" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+    <div class="modal-box">
+      <button class="modal-close" id="close-modal-cliente" aria-label="Fechar">&times;</button>
+      <p class="premium-chip mb-5">AGENDAMENTO</p>
+      <h2 class="mb-2 text-2xl font-extrabold">Qual barbearia?</h2>
+      <p class="mb-6 text-sm text-zinc-400">
+        Informe o slug da barbearia onde deseja agendar.
+      </p>
+      <form id="form-cliente" novalidate>
+        <label class="form-label" for="cliente-slug">Slug da barbearia</label>
+        <input id="cliente-slug" class="input-premium mb-6" type="text"
+               placeholder="Ex: vzp" required>
+        <p id="cliente-error" class="form-error mb-4" aria-live="polite" hidden></p>
+        <button class="btn-gold w-full py-4 text-base" type="submit"
+                data-label="Ver agenda">Ver agenda</button>
+      </form>
+    </div>
+  </div>
 
-            // Verifica se é dono de uma barbearia
-            const { data: barbearia } = await supabaseClient
-                .from('barbearias')
-                .select('slug')
-                .eq('user_id', data.user.id)
-                .maybeSingle();
-
-            if (barbearia) {
-                window.location.href = 'dashboard.html?b=' + barbearia.slug;
-                return;
-            }
-
-            // Verifica se é barbeiro individual
-            const { data: barbeiro } = await supabaseClient
-                .from('barbeiros')
-                .select('barbearia_slug')
-                .eq('user_id', data.user.id)
-                .maybeSingle();
-
-            if (barbeiro) {
-                window.location.href = 'dashboard.html?b=' + barbeiro.barbearia_slug;
-                return;
-            }
-
-            mostrarErro('Acesso negado: conta não vinculada a nenhuma barbearia.');
-            await supabaseClient.auth.signOut();
-            btn.textContent = 'ENTRAR NO PAINEL';
-            btn.disabled    = false;
-        }
-
-        function irParaAgendamento() {
-            window.location.href = 'index.html?b=vzp';
-        }
-
-        // Enter no campo de senha dispara o login
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('password').addEventListener('keydown', e => {
-                if (e.key === 'Enter') realizarLogin();
-            });
-        });
-    </script>
+  <!--
+    Ordem dos scripts:
+      1) Supabase SDK  — deve ser o primeiro
+      2) api.js        — inicializa o cliente e expõe window.Api
+      3) auth.js       — controla modais e usa Api.client para auth
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
 </body>
 </html>
